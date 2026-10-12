@@ -1,93 +1,104 @@
-# ai-tools-training
+# Claude Training — Developer Track
 
+A 15-working-day training program focused on using Claude effectively in software development, with approximately 6 hours of hands-on practice per day plus assigned courses.
 
+- **Trainee:** Ngan Tong
+- **Primary environment:** Claude Desktop — Code tab (Claude Code)
+- **Schedule:** 15 working days
+- **Checkpoints:** Days 3, 6, 11, and 15
 
-## Getting started
+## Training Goals
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- Use Claude Code as part of the daily development workflow.
+- Apply AI to ticket analysis, implementation, testing, code review, and delivery.
+- Manage context, permissions, parallel sessions, and project instructions effectively.
+- Build reusable skills and hooks to automate development tasks.
+- Evaluate AI-generated changes for correctness, quality, and security.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Training Plan
 
-## Add your files
+### Week 1 — Shared Fundamentals
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+| Day                                                      | Topic                                            | Status |
+| -------------------------------------------------------- | ------------------------------------------------ | ------ |
+| [Day 1](https://dojo.agilityio.dev/schedule/day-01.html) | Mental model and Claude basics                   | [x]    |
+| [Day 2](https://dojo.agilityio.dev/schedule/day-02.html) | Ticket analysis, reproduction, and investigation | [ ]    |
+| [Day 3](https://dojo.agilityio.dev/schedule/day-03.html) | Fix, review, and merge — **Checkpoint 1**        | [ ]    |
 
-```
-cd existing_repo
-git remote add origin https://gitlab.asoft-python.com/ngan.tongkim/ai-tools-training.git
-git branch -M main
-git push -uf origin main
-```
+### Week 2 — Developer Track
 
-## Integrate with your tools
+| Day                                                      | Topic                                                       | Status |
+| -------------------------------------------------------- | ----------------------------------------------------------- | ------ |
+| [Day 4](https://dojo.agilityio.dev/schedule/day-04.html) | Claude Code installation and daily workflow                 | [ ]    |
+| [Day 5](https://dojo.agilityio.dev/schedule/day-05.html) | Memory and context management                               | [ ]    |
+| [Day 6](https://dojo.agilityio.dev/schedule/day-06.html) | Advanced workflows and parallel sessions — **Checkpoint 2** | [ ]    |
+| [Day 7](https://dojo.agilityio.dev/schedule/day-07.html) | Skills and plugins                                          | [ ]    |
+| [Day 8](https://dojo.agilityio.dev/schedule/day-08.html) | MCP and connectors                                          | [ ]    |
 
-* [Set up project integrations](https://gitlab.asoft-python.com/ngan.tongkim/ai-tools-training/-/settings/integrations)
+### Week 3 — Advanced Developer Workflows
 
-## Collaborate with your team
+| Day                                                       | Topic                                      | Status |
+| --------------------------------------------------------- | ------------------------------------------ | ------ |
+| [Day 9](https://dojo.agilityio.dev/schedule/day-09.html)  | Hooks and automation                       | [ ]    |
+| [Day 10](https://dojo.agilityio.dev/schedule/day-10.html) | Code review, quality, and security         | [ ]    |
+| [Day 11](https://dojo.agilityio.dev/schedule/day-11.html) | Role-specific workflows — **Checkpoint 3** | [ ]    |
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Capstone — Cross-functional Project
 
-## Test and Deploy
+| Day                                                       | Topic                                          | Status |
+| --------------------------------------------------------- | ---------------------------------------------- | ------ |
+| [Day 12](https://dojo.agilityio.dev/schedule/day-12.html) | Kickoff and planning                           | [ ]    |
+| [Day 13](https://dojo.agilityio.dev/schedule/day-13.html) | Build                                          | [ ]    |
+| [Day 14](https://dojo.agilityio.dev/schedule/day-14.html) | Test and harden                                | [ ]    |
+| [Day 15](https://dojo.agilityio.dev/schedule/day-15.html) | Review, merge, and demo — **Final checkpoint** | [ ]    |
 
-Use the built-in continuous integration in GitLab.
+## Coursework
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+- **Days 1–2:** AI Fluency, AI capabilities and limitations, Claude 101
+- **Day 4:** Claude Code 101, Claude Code in Action
+- **Day 6:** Introduction to Subagents
+- **Day 7:** Introduction to Agent Skills
+- **Day 8:** Introduction to Model Context Protocol
+- **Days 11–12:** AI-native SDLC Playbook, where relevant
+- **Optional:** MCP Advanced Topics, Building with the Claude API, Building Effective Human-Agent Teams
 
-***
+See the [course catalog](https://dojo.agilityio.dev/courses.html) for available courses.
 
-# Editing this README
+## Developer Skill Checklist
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- [ ] Complete a development task from analysis through testing, review, and delivery.
+- [ ] Use plan mode and review diffs for risky changes.
+- [ ] Run parallel sessions in isolated worktrees and integrate changes cleanly.
+- [ ] Configure and use project instructions and context management.
+- [ ] Create and share a reusable skill.
+- [ ] Implement a hook for a repetitive development task.
+- [ ] Use MCP or connectors where appropriate.
+- [ ] Run code reviews and evaluate security findings.
+- [ ] Complete the capstone and present the result.
 
-## Suggestions for a good README
+## Progress Tracking
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Update this section as training progresses. Mark a day complete only after finishing its activities.
 
-## Name
-Choose a self-explaining name for your project.
+| Checkpoint | Requirement                                 | Status      |
+| ---------- | ------------------------------------------- | ----------- |
+| Day 3      | Fundamentals and basic development workflow | Not started |
+| Day 6      | Advanced workflows and parallel sessions    | Not started |
+| Day 11     | Developer skills and automation             | Not started |
+| Day 15     | Capstone delivery and demonstration         | Not started |
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## Daily Routine
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+- **Morning:** 15-minute briefing to align goals and review gaps.
+- **Hands-on:** Approximately 6 hours of practice plus assigned courses.
+- **End of day:** 10-minute standup to share completed work and blockers.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## After the Program
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+- Join a weekly 30-minute Claude Guild to share workflows.
+- Follow the [What's New digest](https://code.claude.com/docs/en/whats-new/index).
+- Explore advanced courses based on your development needs.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+---
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+_Training activities should use designated sandbox environments, not client code._
