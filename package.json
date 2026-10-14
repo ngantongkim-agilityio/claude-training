@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "name": "claude-training",
+  "packageManager": "npm@11.16.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.0",
+    "turbo": "^2.5.0"
+  }
+}
