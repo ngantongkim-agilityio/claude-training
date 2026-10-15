@@ -5,17 +5,10 @@ import { invoiceService } from '@/container'
 import { InvoiceModel } from '@/models'
 
 // Utils
-import {
-  generateInvoiceNumber,
-  getDateRangeUTC,
-  trackInvoiceChanges,
-} from '@/utils'
+import { generateInvoiceNumber, trackInvoiceChanges } from '@/utils'
 
 // Types
 import { InvoiceStatus, UserRole } from '@/types'
-
-// Constants
-import { ERROR_MESSAGE } from '@/constants'
 
 // Mock Mongoose Model Core Layer
 jest.mock('@/models', () => ({
