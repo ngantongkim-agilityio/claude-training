@@ -1,0 +1,11 @@
+node_modules
+dist
+
+# Env
+.env
+
+# Test
+coverage
+
+# TypeScript incremental build cache
+*.tsbuildinfo
