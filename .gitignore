@@ -3,5 +3,10 @@
 *~
 node_modules/
 dist/
+coverage/
+*.tsbuildinfo
 .turbo/
 .omc/
+
+# Env (never commit real values; samples only)
+.env

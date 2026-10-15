@@ -22,8 +22,8 @@ A 15-working-day training program focused on using Claude effectively in softwar
 | Day                                                      | Topic                                            | Status |
 | -------------------------------------------------------- | ------------------------------------------------ | ------ |
 | [Day 1](https://dojo.agilityio.dev/schedule/day-01.html) | Mental model and Claude basics                   | [x]    |
-| [Day 2](https://dojo.agilityio.dev/schedule/day-02.html) | Ticket analysis, reproduction, and investigation | [ ]    |
-| [Day 3](https://dojo.agilityio.dev/schedule/day-03.html) | Fix, review, and merge — **Checkpoint 1**        | [ ]    |
+| [Day 2](https://dojo.agilityio.dev/schedule/day-02.html) | Ticket analysis, reproduction, and investigation | [x]    |
+| [Day 3](https://dojo.agilityio.dev/schedule/day-03.html) | Fix, review, and merge — **Checkpoint 1**        | [x]    |
 
 ### Week 2 — Developer Track
 
@@ -52,18 +52,6 @@ A 15-working-day training program focused on using Claude effectively in softwar
 | [Day 14](https://dojo.agilityio.dev/schedule/day-14.html) | Test and harden                                | [ ]    |
 | [Day 15](https://dojo.agilityio.dev/schedule/day-15.html) | Review, merge, and demo — **Final checkpoint** | [ ]    |
 
-## Coursework
-
-- **Days 1–2:** AI Fluency, AI capabilities and limitations, Claude 101
-- **Day 4:** Claude Code 101, Claude Code in Action
-- **Day 6:** Introduction to Subagents
-- **Day 7:** Introduction to Agent Skills
-- **Day 8:** Introduction to Model Context Protocol
-- **Days 11–12:** AI-native SDLC Playbook, where relevant
-- **Optional:** MCP Advanced Topics, Building with the Claude API, Building Effective Human-Agent Teams
-
-See the [course catalog](https://dojo.agilityio.dev/courses.html) for available courses.
-
 ## Developer Skill Checklist
 
 - [ ] Complete a development task from analysis through testing, review, and delivery.
@@ -75,17 +63,6 @@ See the [course catalog](https://dojo.agilityio.dev/courses.html) for available 
 - [ ] Use MCP or connectors where appropriate.
 - [ ] Run code reviews and evaluate security findings.
 - [ ] Complete the capstone and present the result.
-
-## Progress Tracking
-
-Update this section as training progresses. Mark a day complete only after finishing its activities.
-
-| Checkpoint | Requirement                                 | Status      |
-| ---------- | ------------------------------------------- | ----------- |
-| Day 3      | Fundamentals and basic development workflow | Not started |
-| Day 6      | Advanced workflows and parallel sessions    | Not started |
-| Day 11     | Developer skills and automation             | Not started |
-| Day 15     | Capstone delivery and demonstration         | Not started |
 
 ## Daily Routine
 

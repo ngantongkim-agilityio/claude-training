@@ -1,15 +1,19 @@
 {
   "private": true,
   "name": "claude-training",
-  "packageManager": "npm@11.16.0",
-  "workspaces": [
-    "apps/*"
-  ],
+  "packageManager": "pnpm@10.12.4",
   "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "typecheck": "turbo typecheck",
+    "check": "turbo run check",
     "prepare": "husky"
   },
   "devDependencies": {
     "husky": "^9.1.0",
-    "turbo": "^2.5.0"
+    "turbo": "^2.5.0",
+    "typescript": "5.9.3"
   }
 }
