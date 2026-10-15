@@ -1,15 +1,35 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV",
+    "MONGODB_URI",
+    "JWT_SECRET",
+    "REDIS_URL",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USER",
+    "SMTP_PASS",
+    "SMTP_FROM",
+    "AUTH0_DOMAIN",
+    "AUTH0_AUDIENCE",
+    "CORS_ORIGIN",
+    "APP_TIMEZONE"
+  ],
   "tasks": {
     "check": {
       "outputs": []
     },
     "build": {
-      "outputs": [
-        "dist/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
     },
     "lint": {
+      "outputs": []
+    },
+    "test": {
+      "outputs": []
+    },
+    "typecheck": {
       "outputs": []
     }
   }

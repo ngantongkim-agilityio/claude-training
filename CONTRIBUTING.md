@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js v24 / npm 11.16.0 (see `packageManager` in [package.json](package.json))
+- Node.js v24 / pnpm 10.12.4 (`packageManager` in [package.json](package.json); Corepack can install it: `corepack prepare pnpm@10.12.4 --activate`)
 - Git
 
 ## Local setup
@@ -14,7 +14,7 @@
    ```
 2. Install dependencies (also sets up Husky hooks via `prepare`):
    ```bash
-   npm install
+   pnpm install
    ```
 3. Read [CLAUDE.md](CLAUDE.md) for shared Claude Code instructions and [README.md](README.md) for the training plan.
 
@@ -23,13 +23,10 @@
 No `Makefile` or `pre-commit` is used in this repository.
 
 ```bash
-npm install              # install Husky + Turborepo and set up hooks
-npx turbo --version      # verify Turborepo installation
-npx turbo run check      # run workspace check tasks (no-op until apps define check scripts)
-npx turbo run check --dry-run  # validate turbo.json without executing tasks
-python3 -m json.tool package.json   # validate JSON configs
-python3 -m json.tool turbo.json
-python3 -m json.tool .claude/settings.json
+pnpm install              # install dependencies and set up hooks
+pnpm --filter @repo/api check  # API quality gate: typecheck + lint + tests (needs test env vars, see apps/tax-invoice-api/.env.sample)
+pnpm check                # turbo: run workspace check tasks
+pnpm exec turbo run check --dry-run  # validate turbo.json without executing tasks
 ```
 
 ## Contribution workflow
