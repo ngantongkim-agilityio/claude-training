@@ -1,6 +1,6 @@
 import { InvoiceModel } from '@/models'
 import { InvoiceStatus, UserRole } from '@/types'
-import { getDateRangeUTC } from '@/utils'
+import { escapeRegExp, getDateRangeUTC } from '@/utils'
 import type { BaseRepository } from '@/core/base.repository'
 import type {
   InvoiceEntity,
@@ -73,7 +73,8 @@ export class InvoiceRepository
     }
 
     if (search) {
-      filter.invoiceNumber = { $regex: search, $options: 'i' }
+      // Escape regex metacharacters so search is a literal substring match
+      filter.invoiceNumber = { $regex: escapeRegExp(search), $options: 'i' }
     }
 
     if (status) {
