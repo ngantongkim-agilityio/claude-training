@@ -139,6 +139,25 @@ describe('Invoice Service', () => {
         expect.objectContaining({ status: { $ne: InvoiceStatus.DRAFT } }),
       )
     })
+
+    it('should escape regex special characters in search so it matches literally', async () => {
+      mockQueryBuilder.lean.mockResolvedValueOnce([mockInvoice])
+      ;(InvoiceModel.countDocuments as jest.Mock).mockResolvedValueOnce(1)
+
+      await invoiceService.getInvoices({
+        userEmail: mockPayload.user,
+        role: UserRole.USER,
+        page: 1,
+        limit: 10,
+        search: 'INV.001',
+      })
+
+      expect(InvoiceModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          invoiceNumber: { $regex: 'INV\\.001', $options: 'i' },
+        }),
+      )
+    })
   })
 
   // ================= GET BY NUMBER =================
