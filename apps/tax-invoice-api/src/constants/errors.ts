@@ -31,6 +31,9 @@ export const ERROR_MESSAGE = {
   INVALID_STATUS: 'You are not allowed to change invoice to this status',
   CANNOT_DELETE: 'Cannot delete this invoice',
 
+  // Report
+  INVALID_DATE_RANGE: 'From date must not be later than To date',
+
   INTERNAL_ERROR: 'Internal server error',
 }
 
