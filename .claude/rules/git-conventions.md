@@ -5,7 +5,7 @@ One ticket = one branch = one merge request. Never push to `main`, force-push, o
 ## Branches
 
 - Create branches from `main`: `git checkout -b <type>/<slug> main`.
-- Default to `claude/<slug>`; `feat/`, `fix/`, or other meaningful type prefixes are also accepted.
+- Format: `<type>/<slug>`, e.g. `docs/simplify-contributing`, `feat/auth-retry`, `fix/login-error`. Choose `type` based on the dominant change.
 - One ticket per branch. Never mix unrelated work or commit directly to `main`.
 - Reference the ticket in the MR title/body (`Closes #N`); the branch name does not need a ticket ID.
 - `origin` is GitLab; `github` is a mirror. Do not treat the mirror exception as permission for routine direct pushes to `main`.
