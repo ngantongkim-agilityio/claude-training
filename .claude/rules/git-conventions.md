@@ -27,4 +27,4 @@ One ticket = one branch = one merge request. Never push to `main`, force-push, o
 
 ## Protections
 
-Never weaken or bypass repository protections. Follow `CLAUDE.md`, `CONTRIBUTING.md`, `.claude/hooks/block-main-push.sh`, `.claude/settings.json`, and `.husky/pre-push`.
+Never weaken or bypass repository protections. Follow `CLAUDE.md`, `CONTRIBUTING.md`, `.claude/hooks/block-forbidden-command.mjs`, `.claude/settings.json`, and `.husky/pre-push`.

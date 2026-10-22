@@ -15,7 +15,7 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `exercises/` — Day 01–03 training materials.
 - `.husky/pre-push` — Git hook blocking pushes to `main` and non-fast-forward updates.
 - `.claude/settings.json` — Claude Code permissions and PreToolUse hook wiring.
-- `.claude/hooks/block-main-push.sh` — Claude Code guard blocking `git push` to `main` / force pushes.
+- `.claude/hooks/block-forbidden-command.mjs` — Claude Code guard blocking `git push` to `main` / force pushes.
 
 When adding apps, give each one `check`, `build`, and `lint` scripts so the `turbo.json` tasks cover them.
 

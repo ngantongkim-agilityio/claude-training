@@ -41,7 +41,7 @@ them. It duplicates none of them.
    Only then commit, exactly as approved. This approval covers the commit
    and nothing else.
 5. **Push — approval 2.** State the exact push command (`git push -u origin
-   <branch>`, feature branch only). Wait for a separate explicit "approve".
+<branch>`, feature branch only). Wait for a separate explicit "approve".
    Only then push. Never push to `main`. Never force-push (`--force`,
    `--force-with-lease`, `-f`); if the remote rejects, report the exact
    error and stop. This approval covers the push and nothing else.
@@ -56,7 +56,7 @@ them. It duplicates none of them.
 ## Prohibited
 
 Pushing to `main`, force-pushing in any form, merging an MR, bypassing or
-disabling hooks (`block-main-push.sh`, Husky `pre-push`) or permission
+disabling hooks (`block-forbidden-command.mjs`, Husky `pre-push`) or permission
 restrictions, and treating an approval for one of steps 4–6 as
 authorization for another. Each gate needs its own explicit approval in
 this conversation.
