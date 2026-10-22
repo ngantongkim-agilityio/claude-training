@@ -29,11 +29,11 @@ A 15-working-day training program focused on using Claude effectively in softwar
 
 | Day                                                      | Topic                                                       | Status |
 | -------------------------------------------------------- | ----------------------------------------------------------- | ------ |
-| [Day 4](https://dojo.agilityio.dev/schedule/day-04.html) | Claude Code installation and daily workflow                 | [ ]    |
-| [Day 5](https://dojo.agilityio.dev/schedule/day-05.html) | Memory and context management                               | [ ]    |
-| [Day 6](https://dojo.agilityio.dev/schedule/day-06.html) | Advanced workflows and parallel sessions — **Checkpoint 2** | [ ]    |
-| [Day 7](https://dojo.agilityio.dev/schedule/day-07.html) | Skills and plugins                                          | [ ]    |
-| [Day 8](https://dojo.agilityio.dev/schedule/day-08.html) | MCP and connectors                                          | [ ]    |
+| [Day 4](https://dojo.agilityio.dev/schedule/day-04.html) | Claude Code installation and daily workflow                 | [x]    |
+| [Day 5](https://dojo.agilityio.dev/schedule/day-05.html) | Memory and context management                               | [x]    |
+| [Day 6](https://dojo.agilityio.dev/schedule/day-06.html) | Advanced workflows and parallel sessions — **Checkpoint 2** | [x]    |
+| [Day 7](https://dojo.agilityio.dev/schedule/day-07.html) | Skills and plugins                                          | [x]    |
+| [Day 8](https://dojo.agilityio.dev/schedule/day-08.html) | MCP and connectors                                          | [x]    |
 
 ### Week 3 — Advanced Developer Workflows
 
