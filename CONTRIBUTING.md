@@ -34,3 +34,9 @@ pnpm --filter @repo/api check       # API quality gate: typecheck + lint + tests
 3. Open a merge request against `main`.
 
 Follow [.claude/rules/git-conventions.md](.claude/rules/git-conventions.md) for branch naming, commit format, and push protections.
+
+## Hooks
+
+- **Claude Code `block-main-push`** (`PreToolUse` on `Bash`): blocks `git push` to `main` and force pushes inside Claude Code sessions.
+- **Claude Code `format-on-edit`** (`PostToolUse` on `Edit|Write`): formats only the edited file — `eslint --fix` plus Prettier for JS/TS under `apps/tax-invoice-api/`, Prettier only for other supported files. It never fails or blocks the edit.
+- **Husky `pre-push`** (installed by `pnpm install`): blocks pushes to `main` and non-fast-forward updates.
