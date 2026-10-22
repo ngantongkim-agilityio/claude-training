@@ -37,6 +37,6 @@ Follow [.claude/rules/git-conventions.md](.claude/rules/git-conventions.md) for 
 
 ## Hooks
 
-- **Claude Code `block-main-push`** (`PreToolUse` on `Bash`): blocks `git push` to `main` and force pushes inside Claude Code sessions.
+- **Claude Code `block-forbidden-command`** (`PreToolUse` on `Bash`): shell-aware enforcement of the push policies, blocking `git push` to `main` and force pushes, covering chained/nested commands, refspec forms, and bypass attempts. Exits 2 with a reason to block, 0 to allow.
 - **Claude Code `format-on-edit`** (`PostToolUse` on `Edit|Write`): formats only the edited file — `eslint --fix` plus Prettier for JS/TS under `apps/tax-invoice-api/`, Prettier only for other supported files. It never fails or blocks the edit.
 - **Husky `pre-push`** (installed by `pnpm install`): blocks pushes to `main` and non-fast-forward updates.
