@@ -27,7 +27,7 @@ When adding apps, give each one `check`, `build`, and `lint` scripts so the `tur
 
 ## Shared rules
 
-1. **Never push directly to `main`.** All work goes on a feature branch (`claude/<slug>`) and merges via merge request. A local Husky hook blocks `git push` to `main` and non-fast-forward updates; a Claude Code hook blocks `git push` to `main` and `--force` variants inside Claude sessions; GitLab branch protection enforces this server-side (local hooks are fast feedback, protection is the real gate).
+1. **Never push directly to `main`.** All work goes on a feature branch (`<type>/<slug>`, see `.claude/rules/git-conventions.md`) and merges via merge request. A local Husky hook blocks `git push` to `main` and non-fast-forward updates; a Claude Code hook blocks `git push` to `main` and `--force` variants inside Claude sessions; GitLab branch protection enforces this server-side (local hooks are fast feedback, protection is the real gate).
 2. **Never force-push** (`--force`, `--force-with-lease`, `-f`). Blocked by Claude hook and rejected as non-fast-forward by the Husky hook; GitLab push rules are the authoritative enforcement.
 3. **Plan then implement.** Non-trivial work: explore first, write/confirm a plan, then implement.
 4. **Verify before claiming done.** `pnpm check` (when applicable), diff reviewed, no unrelated changes in the MR. No `Makefile` or `pre-commit` is used in this repository.
