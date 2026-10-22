@@ -8,7 +8,7 @@ argument-hint: "<issue-iid>"
 
 Delivery lane for one GitLab issue, `#<iid>`, with an approved plan from
 `plan-issue`. Workflow rules live in `CONTRIBUTING.md` (branch from `main`
-as `claude/<slug>`, one ticket per MR, validation commands, squash-merge,
+as `<type>/<slug>`, one ticket per MR, validation commands, squash-merge,
 all threads resolved) and `CLAUDE.md` (never push to `main`, never
 force-push, no secrets, verify before claiming done); this skill orders
 them. It duplicates none of them.
@@ -17,7 +17,7 @@ them. It duplicates none of them.
 
 1. A plan for this issue was approved in conversation. No approved plan →
    stop and run `plan-issue <iid>` first.
-2. You are on (or will create, only after plan approval) `claude/<slug>`
+2. You are on (or will create, only after plan approval) `<type>/<slug>`
    from `main`. Never work on `main` itself.
 
 ## Procedure
