@@ -39,4 +39,5 @@ Follow [.claude/rules/git-conventions.md](.claude/rules/git-conventions.md) for 
 
 - **Claude Code `block-forbidden-command`** (`PreToolUse` on `Bash`): shell-aware enforcement of the push policies, blocking `git push` to `main` and force pushes, covering chained/nested commands, refspec forms, and bypass attempts. Exits 2 with a reason to block, 0 to allow.
 - **Claude Code `format-on-edit`** (`PostToolUse` on `Edit|Write`): formats only the edited file — `eslint --fix` plus Prettier for JS/TS under `apps/tax-invoice-api/`, Prettier only for other supported files. It never fails or blocks the edit.
+- **Claude Code `notify-on-finish`** (`Stop`): shows a macOS desktop notification via `osascript` when Claude finishes. It always exits 0 and never blocks Claude Code.
 - **Husky `pre-push`** (installed by `pnpm install`): blocks pushes to `main` and non-fast-forward updates.
