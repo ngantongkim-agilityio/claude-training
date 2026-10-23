@@ -80,7 +80,13 @@ export class InvoiceV2Service extends InvoiceService {
       filter.amount = amountFilter
     }
 
-    const sortOption: Record<string, 1 | -1> = { [sortBy]: order === 'asc' ? 1 : -1 }
+    const direction = order === 'asc' ? 1 : -1
+    // Amounts tie often, so add an _id tiebreaker to keep skip/limit pagination stable.
+    // Timestamp sorts are left as-is so they can keep using the { createdAt: -1 } index.
+    const sortOption: Record<string, 1 | -1> = {
+      [sortBy]: direction,
+      ...(sortBy === 'amount' && { _id: direction }),
+    }
 
     const [invoices, total] = await Promise.all([
       InvoiceModel.find(filter)
