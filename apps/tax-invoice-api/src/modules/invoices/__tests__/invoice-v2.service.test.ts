@@ -74,5 +74,25 @@ describe('Invoice V2 Service', () => {
       expect(result.invoices).toHaveLength(1)
       expect(result.pagination.total).toEqual(1)
     })
+
+    it('should sort by amount ascending with an _id tiebreaker', async () => {
+      mockQueryBuilder.lean.mockResolvedValueOnce([mockInvoice])
+      ;(InvoiceModel.countDocuments as jest.Mock).mockResolvedValueOnce(1)
+
+      await service.getInvoices({
+        userEmail: mockInvoice.user,
+        role: UserRole.USER,
+        page: 1,
+        limit: 10,
+        sortBy: 'amount',
+        order: 'asc',
+        minAmount: 500,
+      })
+
+      expect(InvoiceModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: { $gte: 500 } }),
+      )
+      expect(mockQueryBuilder.sort).toHaveBeenCalledWith({ amount: 1, _id: 1 })
+    })
   })
 })

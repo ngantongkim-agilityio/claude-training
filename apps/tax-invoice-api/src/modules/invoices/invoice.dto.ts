@@ -35,7 +35,7 @@ export const GetInvoicesQuerySchema = PaginationSchema.extend({
   status: z.enum(InvoiceStatus).optional(),
   from: z.string().optional(),
   to: z.string().optional(),
-  sortBy: z.enum(['createdAt', 'updatedAt'] as const).optional(),
+  sortBy: z.enum(['amount', 'createdAt', 'updatedAt'] as const).optional(),
   order: z.enum(['asc', 'desc'] as const).optional(),
 })
 

@@ -158,6 +158,38 @@ describe('Invoice Service', () => {
         }),
       )
     })
+
+    it('should sort by amount with an _id tiebreaker for stable pagination', async () => {
+      mockQueryBuilder.lean.mockResolvedValueOnce([mockInvoice])
+      ;(InvoiceModel.countDocuments as jest.Mock).mockResolvedValueOnce(1)
+
+      await invoiceService.getInvoices({
+        userEmail: mockPayload.user,
+        role: UserRole.USER,
+        page: 1,
+        limit: 10,
+        sortBy: 'amount',
+      })
+
+      const sortArg = mockQueryBuilder.sort.mock.calls[0][0]
+      expect(sortArg).toEqual({ amount: -1, _id: -1 })
+      // Mongo applies sort keys in insertion order: amount first, _id only breaks ties
+      expect(Object.keys(sortArg)).toEqual(['amount', '_id'])
+    })
+
+    it('should default to createdAt desc without a tiebreaker so the createdAt index applies', async () => {
+      mockQueryBuilder.lean.mockResolvedValueOnce([])
+      ;(InvoiceModel.countDocuments as jest.Mock).mockResolvedValueOnce(0)
+
+      await invoiceService.getInvoices({
+        userEmail: mockPayload.user,
+        role: UserRole.USER,
+        page: 1,
+        limit: 10,
+      })
+
+      expect(mockQueryBuilder.sort).toHaveBeenCalledWith({ createdAt: -1 })
+    })
   })
 
   // ================= GET BY NUMBER =================
