@@ -31,7 +31,7 @@ pnpm --filter @repo/api check       # API quality gate: typecheck + lint + tests
 
 1. Create a task branch from `main` and make focused changes (one ticket per branch).
 2. Run the relevant checks above.
-3. Open a merge request against `main`.
+3. Open a merge request (GitLab) or pull request (GitHub) against `main`. GitHub PRs use [.github/pull_request_template.md](.github/pull_request_template.md).
 
 Follow [.claude/rules/git-conventions.md](.claude/rules/git-conventions.md) for branch naming, commit format, and push protections.
 
