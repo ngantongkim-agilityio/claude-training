@@ -8,11 +8,9 @@
     "lint": "turbo lint",
     "test": "turbo test",
     "typecheck": "turbo typecheck",
-    "check": "turbo run check",
-    "prepare": "husky"
+    "check": "turbo run check"
   },
   "devDependencies": {
-    "husky": "^9.1.0",
     "turbo": "^2.5.0",
     "typescript": "5.9.3"
   }
