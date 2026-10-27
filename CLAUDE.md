@@ -15,6 +15,9 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `exercises/` — Day 01–03 training materials.
 - `.claude/settings.json` — Claude Code permissions and PreToolUse hook wiring.
 - `.claude/hooks/block-forbidden-command.mjs` — Claude Code guard blocking `git push` to `main` / force pushes.
+- `.claude/skills/` — project skills: `analyze-issue`, `plan-issue`, `ship-issue` (GitLab issue lane) and `create-pr` (GitHub PR from the template).
+- `.github/pull_request_template.md` — GitHub PR description template (Summary, Changes, Testing, Risks, Checklist).
+- `.github/workflows/` — Claude PR assistant (`claude.yml`) and automated PR review (`claude-code-review.yml`).
 
 When adding apps, give each one `check`, `build`, and `lint` scripts so the `turbo.json` tasks cover them.
 

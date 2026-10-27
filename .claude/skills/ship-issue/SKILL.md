@@ -49,7 +49,10 @@ them. It duplicates none of them.
    commit) and the description: Summary, Changes, Testing (real results
    from step 2), Risks, and `Related to <full issue URL>`. Wait for a
    separate explicit "approve". Only then create the MR against `main`.
-   This approval covers MR creation and nothing else.
+   This approval covers MR creation and nothing else. For a GitHub PR on
+   the `github` remote, build the description from
+   `.github/pull_request_template.md` and create it per the `create-pr`
+   skill.
 7. **Stop.** Never merge the MR, never mark the issue done, never tag.
    Report the MR URL and end.
 
