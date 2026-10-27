@@ -19,17 +19,17 @@ A RESTful API for managing user information and electronic tax invoices, built w
 
 ## Tech Stack
 
-| Category       | Technology                                                                                                           |
-| -------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Runtime        | [Node.js](https://nodejs.org) v22.16.0                                                                               |
-| Framework      | [Express.js](https://expressjs.com)                                                                                  |
-| Language       | [TypeScript](https://www.typescriptlang.org)                                                                         |
-| Database       | [MongoDB](https://www.mongodb.com)                                                                                   |
-| ODM            | [Mongoose](https://mongoosejs.com)                                                                                   |
-| Authentication | [JWT](https://jwt.io) / [Auth0](https://auth0.com)                                                                   |
-| Validation     | [Zod](https://zod.dev)                                                                                               |
-| Testing        | [Jest](https://jestjs.io)                                                                                            |
-| Code Quality   | [Prettier](https://prettier.io), [Husky](https://github.com/typicode/husky), [Commitlint](https://commitlint.js.org) |
+| Category       | Technology                                                               |
+| -------------- | ------------------------------------------------------------------------ |
+| Runtime        | [Node.js](https://nodejs.org) v22.16.0                                   |
+| Framework      | [Express.js](https://expressjs.com)                                      |
+| Language       | [TypeScript](https://www.typescriptlang.org)                             |
+| Database       | [MongoDB](https://www.mongodb.com)                                       |
+| ODM            | [Mongoose](https://mongoosejs.com)                                       |
+| Authentication | [JWT](https://jwt.io) / [Auth0](https://auth0.com)                       |
+| Validation     | [Zod](https://zod.dev)                                                   |
+| Testing        | [Jest](https://jestjs.io)                                                |
+| Code Quality   | [Prettier](https://prettier.io), [Commitlint](https://commitlint.js.org) |
 
 ---
 

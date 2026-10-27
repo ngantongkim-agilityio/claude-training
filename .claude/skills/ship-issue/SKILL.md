@@ -56,7 +56,7 @@ them. It duplicates none of them.
 ## Prohibited
 
 Pushing to `main`, force-pushing in any form, merging an MR, bypassing or
-disabling hooks (`block-forbidden-command.mjs`, Husky `pre-push`) or permission
+disabling hooks (`block-forbidden-command.mjs`) or permission
 restrictions, and treating an approval for one of steps 4–6 as
 authorization for another. Each gate needs its own explicit approval in
 this conversation.
