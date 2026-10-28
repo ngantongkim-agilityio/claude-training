@@ -17,7 +17,7 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `.claude/hooks/block-forbidden-command.mjs` — Claude Code guard blocking `git push` to `main` / force pushes.
 - `.claude/skills/` — project skills: `analyze-issue`, `plan-issue`, `ship-issue` (GitLab issue lane) and `create-pr` (GitHub PR from the template).
 - `.github/pull_request_template.md` — GitHub PR description template (Summary, Changes, Testing, Risks, Checklist).
-- `.github/workflows/` — Claude PR assistant (`claude.yml`) and automated PR review (`claude-code-review.yml`).
+- `.github/workflows/` — Claude PR assistant (`claude.yml`), automated PR review (`claude-code-review.yml`), and CI quality gate (`ci.yml`: `pnpm check` on pushes/PRs to `main`).
 
 When adding apps, give each one `check`, `build`, and `lint` scripts so the `turbo.json` tasks cover them.
 
