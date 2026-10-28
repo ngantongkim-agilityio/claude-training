@@ -33,16 +33,6 @@ body:
       description: What happens instead. Paste the error or response body; never secrets.
     validations:
       required: true
-  - type: dropdown
-    id: area
-    attributes:
-      label: Area
-      options:
-        - tax-invoice-api
-        - web
-        - tooling / docs
-    validations:
-      required: false
   - type: input
     id: environment
     attributes:

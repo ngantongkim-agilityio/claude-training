@@ -3,29 +3,36 @@ description: A new capability or a change in behaviour.
 labels: ["enhancement"]
 body:
   - type: textarea
-    id: outcome
+    id: description
     attributes:
-      label: Problem / outcome
-      description: What changes for whom, and why it is needed.
+      label: Description
+      description: What changes for whom, and why, in two or three sentences. Link the spec and name dependencies when there are any.
     validations:
       required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: Business rules
+      description: Agreed rules and constraints, one per line, with their source. No implementation detail.
+    validations:
+      required: false
   - type: textarea
     id: acceptance
     attributes:
       label: Acceptance criteria
-      description: Testable criteria, one per line.
+      description: At most 8 testable criteria, one line each.
       placeholder: |
         - AC-1 Given <state>, when <action>, then <result>.
     validations:
       required: true
-  - type: dropdown
-    id: area
+  - type: textarea
+    id: tests
     attributes:
-      label: Area
-      options:
-        - tax-invoice-api
-        - web
-        - tooling / docs
+      label: Test cases
+      description: At most 5 key cases; the full matrix stays in the spec.
+      placeholder: |
+        | TC | AC | Given | When | Then |
+        |---|---|---|---|---|
     validations:
       required: false
   - type: textarea
@@ -33,5 +40,12 @@ body:
     attributes:
       label: Out of scope
       description: What this issue will not do.
+    validations:
+      required: false
+  - type: textarea
+    id: questions
+    attributes:
+      label: Open questions
+      description: Blocking questions first, each with who answers it.
     validations:
       required: false
