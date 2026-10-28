@@ -1,14 +1,14 @@
 # Git conventions
 
-One ticket = one branch = one merge request. Never push to `main`, force-push, or bypass hooks.
+One ticket = one branch = one MR/PR. Never push to `main`, force-push, or bypass hooks.
 
 ## Branches
 
 - Create branches from `main`: `git checkout -b <type>/<slug> main`.
 - Format: `<type>/<slug>`, e.g. `docs/simplify-contributing`, `feat/auth-retry`, `fix/login-error`. Choose `type` based on the dominant change.
 - One ticket per branch. Never mix unrelated work or commit directly to `main`.
-- Reference the ticket in the MR title/body (`Closes #N`); the branch name does not need a ticket ID.
-- `origin` is GitLab; `github` is a mirror. Do not treat the mirror exception as permission for routine direct pushes to `main`.
+- Tickets are GitHub issues on `ngantongkim-agilityio/claude-training`. Reference the ticket in the PR title/body (`Closes #N`; in a GitLab MR use the full issue URL); the branch name does not need a ticket ID.
+- `origin` is GitLab; `github` is a mirror and hosts the issue tracker. Do not treat the mirror exception as permission for routine direct pushes to `main`.
 
 ## Commits
 
@@ -24,7 +24,12 @@ One ticket = one branch = one merge request. Never push to `main`, force-push, o
 - GitHub PRs use `.github/pull_request_template.md`: fill every section and pass it with `gh pr create --body-file <file>` (see the `create-pr` skill). `--fill`, `--body`, and `--web` do not apply the template.
 - Use the GitLab project's default merge method. Resolve all discussion threads before merging.
 - Enable **Delete source branch** when merging.
-- Creating or submitting an MR requires explicit user approval. Show the draft title and description first. Never merge an MR, mark an issue done, or tag.
+- Creating or submitting an MR/PR requires explicit user approval. Show the draft title and description first. Never merge an MR, mark an issue done, or tag.
+
+## Issues
+
+- File issues with the GitHub forms or the `create-issue` skill, which passes the drafted body with `gh issue create --body-file <file>`.
+- Creating an issue requires explicit user approval. Show the draft title, labels, and body first. Never edit, close, or reopen existing issues unasked.
 
 ## Protections
 

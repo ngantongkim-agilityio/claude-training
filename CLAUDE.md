@@ -15,9 +15,12 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `exercises/` — Day 01–03 training materials.
 - `.claude/settings.json` — Claude Code permissions and PreToolUse hook wiring.
 - `.claude/hooks/block-forbidden-command.mjs` — Claude Code guard blocking `git push` to `main` / force pushes.
-- `.claude/skills/` — project skills: `analyze-issue`, `plan-issue`, `ship-issue` (GitLab issue lane) and `create-pr` (GitHub PR from the template).
+- `.claude/skills/` — project skills: `create-issue` (GitHub issue from the forms), `create-pr` (GitHub PR from the template), and `analyze-issue`, `plan-issue`, `ship-issue` (still read GitLab issues until migrated).
+- `.github/ISSUE_TEMPLATE/` — GitHub issue forms (`bug`, `feature`, `chore`); `config.yml` disables blank issues.
 - `.github/pull_request_template.md` — GitHub PR description template (Summary, Changes, Testing, Risks, Checklist).
 - `.github/workflows/` — Claude PR assistant (`claude.yml`), automated PR review (`claude-code-review.yml`), and CI quality gate (`ci.yml`: `pnpm check` on pushes/PRs to `main`).
+
+Issues are tracked in GitHub Issues on `ngantongkim-agilityio/claude-training` (the `github` remote). `origin` (GitLab) still hosts the code.
 
 When adding apps, give each one `check`, `build`, and `lint` scripts so the `turbo.json` tasks cover them.
 

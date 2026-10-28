@@ -29,9 +29,10 @@ pnpm --filter @repo/api check       # API quality gate: typecheck + lint + tests
 
 ## Workflow
 
-1. Create a task branch from `main` and make focused changes (one ticket per branch).
-2. Run the relevant checks above.
-3. Open a merge request (GitLab) or pull request (GitHub) against `main`. GitHub PRs use [.github/pull_request_template.md](.github/pull_request_template.md).
+1. Pick or file a [GitHub issue](https://github.com/ngantongkim-agilityio/claude-training/issues) using the bug, feature, or chore form (in Claude Code: `/create-issue`).
+2. Create a task branch from `main` and make focused changes (one ticket per branch).
+3. Run the relevant checks above.
+4. Open a pull request (GitHub) or merge request (GitLab) against `main`. GitHub PRs use [.github/pull_request_template.md](.github/pull_request_template.md) and reference the issue with `Closes #N`; GitLab MRs use the full issue URL, since `#N` there means a GitLab issue.
 
 Follow [.claude/rules/git-conventions.md](.claude/rules/git-conventions.md) for branch naming, commit format, and push protections.
 

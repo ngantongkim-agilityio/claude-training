@@ -8,7 +8,7 @@ Remove these guidance comments before creating the PR.
 
 <!-- What changes and why, in one to three sentences. -->
 
-<!-- Link the ticket: `Closes #N` (GitHub issue) or `Related to <GitLab issue URL>`. -->
+<!-- Link the GitHub issue: `Closes #N`. Legacy GitLab issue: `Related to <GitLab issue URL>`. -->
 
 ## Changes
 
