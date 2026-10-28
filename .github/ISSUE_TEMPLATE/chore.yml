@@ -1,0 +1,38 @@
+name: Chore
+description: Tooling, config, docs or tech debt with no behaviour change.
+labels: ["chore"]
+body:
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What hurts today, or what this unblocks.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: The concrete changes.
+    validations:
+      required: true
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: Checkable results.
+      placeholder: |
+        - [ ] <checkable result>
+        - [ ] `pnpm check` passes.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - tax-invoice-api
+        - web
+        - tooling / docs
+    validations:
+      required: false
