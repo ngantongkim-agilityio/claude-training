@@ -54,11 +54,7 @@ describe('BaseController', () => {
 
       controller.sendOk(res as Response, data)
 
-      expect(responseOk).toHaveBeenCalledWith(
-        res,
-        'Fetched successfully',
-        data,
-      )
+      expect(responseOk).toHaveBeenCalledWith(res, 'Fetched successfully', data)
     })
   })
 

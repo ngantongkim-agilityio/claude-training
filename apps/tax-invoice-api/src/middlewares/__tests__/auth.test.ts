@@ -18,9 +18,8 @@ jest.mock('@/container', () => ({
 }))
 
 // Get reference to the mock handler created inside the factory
-const mockAuthHandler = (
-  jest.requireMock('express-oauth2-jwt-bearer') as any
-).__handler
+const mockAuthHandler = (jest.requireMock('express-oauth2-jwt-bearer') as any)
+  .__handler
 
 const createMockReq = (token?: string): Partial<Request> => ({
   headers: token ? { authorization: `Bearer ${token}` } : {},
@@ -89,11 +88,7 @@ describe('Auth Middleware', () => {
       const req = createMockReq('only-one-segment')
       const res = createMockRes()
       await expect(
-        verifyAuth0Token(
-          'only-one-segment',
-          req as Request,
-          res as Response,
-        ),
+        verifyAuth0Token('only-one-segment', req as Request, res as Response),
       ).rejects.toThrow('Malformed token: expected 3 segments (JWS), got 1')
     })
 

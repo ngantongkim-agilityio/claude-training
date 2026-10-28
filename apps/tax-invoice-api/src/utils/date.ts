@@ -22,8 +22,15 @@ export const getDateRangeUTC = (
   to: string,
   timezone: string = env.APP_TIMEZONE,
 ): { $gte: Date; $lt: Date } => {
-  const start = DateTime.fromISO(normalizeDate(from), { zone: timezone }).startOf('day').toUTC().toJSDate()
-  const end = DateTime.fromISO(normalizeDate(to), { zone: timezone }).startOf('day').plus({ days: 1 }).toUTC().toJSDate()
+  const start = DateTime.fromISO(normalizeDate(from), { zone: timezone })
+    .startOf('day')
+    .toUTC()
+    .toJSDate()
+  const end = DateTime.fromISO(normalizeDate(to), { zone: timezone })
+    .startOf('day')
+    .plus({ days: 1 })
+    .toUTC()
+    .toJSDate()
 
   return { $gte: start, $lt: end }
 }

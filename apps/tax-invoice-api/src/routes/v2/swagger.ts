@@ -18,5 +18,9 @@ export const swaggerRoutes = (router: Router) => {
     serverUrl: '/api/v2',
   })
 
-  router.use(ROUTES.DOCS, ...swaggerUi.serveFiles(document), swaggerUi.setup(document))
+  router.use(
+    ROUTES.DOCS,
+    ...swaggerUi.serveFiles(document),
+    swaggerUi.setup(document),
+  )
 }

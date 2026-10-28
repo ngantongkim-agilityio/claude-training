@@ -53,14 +53,8 @@ export const invoiceRoutes = (router: Router) => {
     .all(authenticate)
     .get(invoiceV2Controller.getInvoiceByNumber)
     .patch(invoiceV2Controller.updateInvoiceStatus)
-    .put(
-      checkRole(UserRole.USER),
-      invoiceV2Controller.updateInvoiceInfo,
-    )
-    .delete(
-      checkRole(UserRole.USER),
-      invoiceV2Controller.deleteInvoice,
-    )
+    .put(checkRole(UserRole.USER), invoiceV2Controller.updateInvoiceInfo)
+    .delete(checkRole(UserRole.USER), invoiceV2Controller.deleteInvoice)
 
   /**
    * @route GET /invoices/:invoiceNumber/history

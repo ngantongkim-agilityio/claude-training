@@ -242,7 +242,10 @@ describe('Report Controller', () => {
         mockPdfBuffer,
       )
 
-      await reportController.exportPdf(req as Request, res as unknown as Response)
+      await reportController.exportPdf(
+        req as Request,
+        res as unknown as Response,
+      )
 
       expect(mockReportService.generateReportPdf).toHaveBeenCalledWith({
         from: '2024-01-01',
@@ -252,12 +255,18 @@ describe('Report Controller', () => {
         userRole: mockUser.role,
       })
 
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf')
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Type',
+        'application/pdf',
+      )
       expect(res.setHeader).toHaveBeenCalledWith(
         'Content-Disposition',
         'attachment; filename="invoice-report_2024-01-01_2024-01-31.pdf"',
       )
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Length', mockPdfBuffer.length)
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Length',
+        mockPdfBuffer.length,
+      )
       expect(res.status).toHaveBeenCalledWith(STATUS_CODE.OK)
       expect(res.end).toHaveBeenCalledWith(mockPdfBuffer)
     })
@@ -281,7 +290,10 @@ describe('Report Controller', () => {
         to: '2024-01-31',
       }
 
-      await reportController.emailReport(req as Request, res as unknown as Response)
+      await reportController.emailReport(
+        req as Request,
+        res as unknown as Response,
+      )
 
       expect(addReportEmailJob).toHaveBeenCalledWith({
         from: '2024-01-01',
@@ -307,7 +319,10 @@ describe('Report Controller', () => {
         recipientEmail: 'custom@example.com',
       }
 
-      await reportController.emailReport(req as Request, res as unknown as Response)
+      await reportController.emailReport(
+        req as Request,
+        res as unknown as Response,
+      )
 
       expect(addReportEmailJob).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -320,7 +335,10 @@ describe('Report Controller', () => {
       req.body = { to: '2024-01-31' }
 
       await expect(
-        reportController.emailReport(req as Request, res as unknown as Response),
+        reportController.emailReport(
+          req as Request,
+          res as unknown as Response,
+        ),
       ).rejects.toThrow(ValidationError)
 
       expect(addReportEmailJob).not.toHaveBeenCalled()
@@ -334,7 +352,10 @@ describe('Report Controller', () => {
       }
 
       await expect(
-        reportController.emailReport(req as Request, res as unknown as Response),
+        reportController.emailReport(
+          req as Request,
+          res as unknown as Response,
+        ),
       ).rejects.toThrow(ValidationError)
     })
   })

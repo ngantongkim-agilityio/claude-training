@@ -11,17 +11,14 @@ import type {
   UserEntity,
 } from './user.dto'
 
-export class UserRepository
-  implements
-    BaseRepository<
-      UserEntity,
-      CreateUserDTO,
-      UpdateUserDTO,
-      GetUsersInputDTO,
-      string,
-      GetUsersResponseDTO
-    >
-{
+export class UserRepository implements BaseRepository<
+  UserEntity,
+  CreateUserDTO,
+  UpdateUserDTO,
+  GetUsersInputDTO,
+  string,
+  GetUsersResponseDTO
+> {
   async findById(id: string): Promise<UserEntity | null> {
     return UserModel.findById(id).lean<UserEntity>()
   }

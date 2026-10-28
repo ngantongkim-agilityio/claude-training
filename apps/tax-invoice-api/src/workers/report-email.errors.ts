@@ -12,14 +12,10 @@ export class ReportGenerationError extends Data.TaggedError(
   readonly cause: unknown
 }> {}
 
-export class PdfGenerationError extends Data.TaggedError(
-  'PdfGenerationError',
-)<{
+export class PdfGenerationError extends Data.TaggedError('PdfGenerationError')<{
   readonly cause: unknown
 }> {}
 
-export class EmailDeliveryError extends Data.TaggedError(
-  'EmailDeliveryError',
-)<{
+export class EmailDeliveryError extends Data.TaggedError('EmailDeliveryError')<{
   readonly cause: unknown
 }> {}
