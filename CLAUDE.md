@@ -15,6 +15,7 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `exercises/` — Day 01–03 training materials.
 - `.claude/settings.json` — Claude Code permissions and PreToolUse hook wiring.
 - `.claude/hooks/block-forbidden-command.mjs` — Claude Code guard blocking `git push` to `main` / force pushes.
+- `.claude/agents/` — project subagents, read-only by instruction: `business-analyst` (drafts a ticket from a vague brief for `create-issue`) and `code-reviewer` (independent review of a branch, diff, or PR).
 - `.claude/skills/` — project skills: `create-issue` (GitHub issue from the forms), `create-pr` (GitHub PR from the template), and `analyze-issue`, `plan-issue`, `ship-issue` (still read GitLab issues until migrated).
 - `.github/ISSUE_TEMPLATE/` — GitHub issue forms (`bug`, `feature`, `chore`); `config.yml` disables blank issues.
 - `.github/pull_request_template.md` — GitHub PR description template (Summary, Changes, Testing, Risks, Checklist).
