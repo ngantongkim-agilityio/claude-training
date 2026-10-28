@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Non-secret placeholders: src/configs/env.ts requires the first two at import,
+      # and the auth middleware tests expect Auth0 to be configured (the client is mocked).
+      NODE_ENV: test
+      MONGODB_URI: mongodb://localhost:27017/ci-placeholder
+      JWT_SECRET: ci-placeholder-not-a-secret
+      AUTH0_DOMAIN: ci-placeholder.auth0.local
+      AUTH0_AUDIENCE: https://ci-placeholder/api
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6 # version from packageManager (pnpm@10.12.4)
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run checks
+        run: pnpm check
