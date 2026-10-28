@@ -12,17 +12,14 @@ import type {
  * Repository handling all direct Database Access Object (DAO) mutations for Invoices.
  * Implements the standard BaseRepository interface to decoupling data source mechanisms.
  */
-export class InvoiceRepository
-  implements
-    BaseRepository<
-      InvoiceEntity,
-      Omit<InvoiceEntity, 'createdAt' | 'updatedAt'>, // Structure used for creation
-      Partial<InvoiceEntity>, // Structure used for updates
-      GetInvoicesRequestDTO, // Query filter parameters
-      string, // Identity key type (invoiceNumber)
-      GetInvoicesResponseDTO // Overridden query array layout
-    >
-{
+export class InvoiceRepository implements BaseRepository<
+  InvoiceEntity,
+  Omit<InvoiceEntity, 'createdAt' | 'updatedAt'>, // Structure used for creation
+  Partial<InvoiceEntity>, // Structure used for updates
+  GetInvoicesRequestDTO, // Query filter parameters
+  string, // Identity key type (invoiceNumber)
+  GetInvoicesResponseDTO // Overridden query array layout
+> {
   /**
    * Finds an active, non-deleted invoice instance by its distinct number.
    * Leverages assertion to shield outer layers from internal Hydrated Mongoose specifics.

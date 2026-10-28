@@ -17,9 +17,7 @@ jest.mock('@/container', () => ({
     getInvoicesByFilter: jest.fn((_req, res) =>
       res.status(200).json({ status: 'success' }),
     ),
-    exportPdf: jest.fn((_req, res) =>
-      res.status(200).end(),
-    ),
+    exportPdf: jest.fn((_req, res) => res.status(200).end()),
     emailReport: jest.fn((_req, res) =>
       res.status(202).json({ status: 'success' }),
     ),

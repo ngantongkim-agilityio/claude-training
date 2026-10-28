@@ -24,19 +24,11 @@ export const reportRoutes = (router: Router) => {
    * @route POST /reports/invoices/pdf
    * @description Generates and returns a downloadable PDF of the invoice report.
    */
-  router.post(
-    ROUTES.REPORTS.PDF,
-    authenticate,
-    reportController.exportPdf,
-  )
+  router.post(ROUTES.REPORTS.PDF, authenticate, reportController.exportPdf)
 
   /**
    * @route POST /reports/invoices/email
    * @description Queues a report email for async delivery via BullMQ.
    */
-  router.post(
-    ROUTES.REPORTS.EMAIL,
-    authenticate,
-    reportController.emailReport,
-  )
+  router.post(ROUTES.REPORTS.EMAIL, authenticate, reportController.emailReport)
 }

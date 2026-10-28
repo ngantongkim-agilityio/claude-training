@@ -21,7 +21,9 @@ const attachRedisConnectionLogging = (
   // Keep the pre-ready socket event at debug level because the ready event is the
   // operational signal that Redis can accept BullMQ commands.
   connection.on('connect', () => {
-    logger.debug(`Redis ${connectionRole} connection opened`, { connectionRole })
+    logger.debug(`Redis ${connectionRole} connection opened`, {
+      connectionRole,
+    })
   })
 
   connection.on('ready', () => {
@@ -29,7 +31,9 @@ const attachRedisConnectionLogging = (
   })
 
   connection.on('reconnecting', () => {
-    logger.warn(`Redis ${connectionRole} connection reconnecting`, { connectionRole })
+    logger.warn(`Redis ${connectionRole} connection reconnecting`, {
+      connectionRole,
+    })
   })
 
   connection.on('end', () => {

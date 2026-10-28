@@ -31,7 +31,14 @@ const getInvoicesMock = jest.fn((req, res) =>
     status: 'success',
     message: 'Data fetched successfully',
     data: {
-      invoices: [{ invoiceNumber: 'INV-001', user: 'user@example.com', status: 'draft', amount: 1500 }],
+      invoices: [
+        {
+          invoiceNumber: 'INV-001',
+          user: 'user@example.com',
+          status: 'draft',
+          amount: 1500,
+        },
+      ],
     },
   }),
 )
@@ -39,7 +46,14 @@ const getInvoiceByNumberMock = jest.fn((req, res) =>
   res.status(200).json({
     status: 'success',
     message: 'Data fetched successfully',
-    data: { invoice: { invoiceNumber: 'INV-001', user: 'user@example.com', status: 'draft', amount: 100 } },
+    data: {
+      invoice: {
+        invoiceNumber: 'INV-001',
+        user: 'user@example.com',
+        status: 'draft',
+        amount: 100,
+      },
+    },
   }),
 )
 const updateInvoiceStatusMock = jest.fn((req, res) =>
@@ -55,7 +69,14 @@ const getInvoiceHistoryMock = jest.fn((req, res) =>
   res.status(200).json({
     status: 'success',
     message: 'Data fetched successfully',
-    data: { histories: [{ changes: { amount: { old: 100, new: 150 } }, createdAt: '2025-07-15T10:30:00.000Z' }] },
+    data: {
+      histories: [
+        {
+          changes: { amount: { old: 100, new: 150 } },
+          createdAt: '2025-07-15T10:30:00.000Z',
+        },
+      ],
+    },
   }),
 )
 
@@ -64,7 +85,9 @@ jest.mock('@/container', () => ({
     createInvoice: jest.fn((req, res) => createInvoiceMock(req, res)),
     getInvoices: jest.fn((req, res) => getInvoicesMock(req, res)),
     getInvoiceByNumber: jest.fn((req, res) => getInvoiceByNumberMock(req, res)),
-    updateInvoiceStatus: jest.fn((req, res) => updateInvoiceStatusMock(req, res)),
+    updateInvoiceStatus: jest.fn((req, res) =>
+      updateInvoiceStatusMock(req, res),
+    ),
     updateInvoiceInfo: jest.fn((req, res) => updateInvoiceInfoMock(req, res)),
     deleteInvoice: jest.fn((req, res) => deleteInvoiceMock(req, res)),
     getInvoiceHistory: jest.fn((req, res) => getInvoiceHistoryMock(req, res)),
@@ -109,7 +132,9 @@ describe('Invoice Routes V2', () => {
     })
 
     it('should accept minAmount and maxAmount query params', async () => {
-      const res = await request(app).get('/invoices?minAmount=1000&maxAmount=5000')
+      const res = await request(app).get(
+        '/invoices?minAmount=1000&maxAmount=5000',
+      )
 
       expect(authenticateMock).toHaveBeenCalled()
       expect(getInvoicesMock).toHaveBeenCalled()

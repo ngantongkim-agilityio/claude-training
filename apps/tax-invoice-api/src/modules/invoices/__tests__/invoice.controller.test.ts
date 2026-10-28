@@ -100,7 +100,11 @@ describe('InvoiceController', () => {
         role: UserRole.ADMIN,
       } as any // eslint-disable-line @typescript-eslint/no-explicit-any
 
-      await invoiceController.createInvoice(req as Request, res as Response, next)
+      await invoiceController.createInvoice(
+        req as Request,
+        res as Response,
+        next,
+      )
 
       expect(next).toHaveBeenCalledWith(expect.any(Error))
     })

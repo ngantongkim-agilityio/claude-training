@@ -24,8 +24,18 @@ export class InvoiceV2Controller extends InvoiceController {
    * V2: Override getInvoices to support minAmount/maxAmount filtering
    */
   override getInvoices = async (req: Request, res: Response): Promise<void> => {
-    const { page, limit, search, status, from, to, sortBy, order, minAmount, maxAmount } =
-      parseRequest(GetInvoicesV2QuerySchema, req.query)
+    const {
+      page,
+      limit,
+      search,
+      status,
+      from,
+      to,
+      sortBy,
+      order,
+      minAmount,
+      maxAmount,
+    } = parseRequest(GetInvoicesV2QuerySchema, req.query)
 
     const result = await this.invoiceV2Service.getInvoices({
       userEmail: req.currentUser!.email,

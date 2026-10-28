@@ -83,13 +83,11 @@ describe('AuthController', () => {
         password: 'StrongPass123!',
       }
 
-      jest
-        .spyOn(authService, 'register')
-        .mockReturnValueOnce(
-          Effect.fail(
-            new UserAlreadyExistsError({ email: 'test@example.com' }),
-          ) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-        )
+      jest.spyOn(authService, 'register').mockReturnValueOnce(
+        Effect.fail(
+          new UserAlreadyExistsError({ email: 'test@example.com' }),
+        ) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      )
 
       await expect(
         authController.register(req as Request, res),
@@ -138,13 +136,11 @@ describe('AuthController', () => {
         password: 'StrongPass123!',
       }
 
-      jest
-        .spyOn(authService, 'login')
-        .mockReturnValueOnce(
-          Effect.fail(
-            new InvalidCredentialsError({ email: 'test@example.com' }),
-          ) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-        )
+      jest.spyOn(authService, 'login').mockReturnValueOnce(
+        Effect.fail(
+          new InvalidCredentialsError({ email: 'test@example.com' }),
+        ) as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      )
 
       await expect(
         authController.login(req as Request, res),

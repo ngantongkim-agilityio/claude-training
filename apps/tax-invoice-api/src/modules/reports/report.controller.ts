@@ -7,7 +7,11 @@ import { parseRequest, responseOk } from '@/utils'
 import { SUCCESS_MESSAGE, STATUS_CODE } from '@/constants'
 
 // Schemas
-import { GetInvoiceReportQuerySchema, ExportPdfBodySchema, EmailReportBodySchema } from './report.dto'
+import {
+  GetInvoiceReportQuerySchema,
+  ExportPdfBodySchema,
+  EmailReportBodySchema,
+} from './report.dto'
 
 // Services
 import type { ReportService } from './report.service'
@@ -52,10 +56,7 @@ export class ReportController {
    * Same filters and authorization as the main report endpoint.
    */
   exportPdf = async (req: Request, res: Response): Promise<void> => {
-    const { from, to, status } = parseRequest(
-      ExportPdfBodySchema,
-      req.body,
-    )
+    const { from, to, status } = parseRequest(ExportPdfBodySchema, req.body)
 
     const pdfBuffer = await this.service.generateReportPdf({
       from,

@@ -65,7 +65,16 @@ jest.mock('@/models', () => {
       find,
       aggregate,
       countDocuments,
-      __mock: { find, select, sort, skip, limit, lean, aggregate, countDocuments },
+      __mock: {
+        find,
+        select,
+        sort,
+        skip,
+        limit,
+        lean,
+        aggregate,
+        countDocuments,
+      },
     },
   }
 })
@@ -101,7 +110,11 @@ describe('ReportService', () => {
       expect(aggregate).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
-            $match: { createdAt: expectedRange, isDeleted: false, status: { $ne: InvoiceStatus.DRAFT } },
+            $match: {
+              createdAt: expectedRange,
+              isDeleted: false,
+              status: { $ne: InvoiceStatus.DRAFT },
+            },
           }),
         ]),
       )

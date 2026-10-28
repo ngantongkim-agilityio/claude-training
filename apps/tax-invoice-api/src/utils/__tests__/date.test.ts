@@ -30,7 +30,11 @@ describe('getDateRangeUTC', () => {
 
   it('should handle negative offset timezone (America/New_York)', () => {
     // EDT is UTC-4 in June
-    const result = getDateRangeUTC('2026-06-11', '2026-06-11', 'America/New_York')
+    const result = getDateRangeUTC(
+      '2026-06-11',
+      '2026-06-11',
+      'America/New_York',
+    )
 
     // June 11 00:00 ET = June 11 04:00 UTC
     expect(result.$gte).toEqual(new Date('2026-06-11T04:00:00.000Z'))
@@ -44,7 +48,9 @@ describe('getDateRangeUTC', () => {
     // Invoice created at 2026-06-11 03:00 VN = 2026-06-10T20:00:00Z
     const invoiceCreatedAt = new Date('2026-06-10T20:00:00.000Z')
 
-    expect(invoiceCreatedAt.getTime()).toBeGreaterThanOrEqual(range.$gte.getTime())
+    expect(invoiceCreatedAt.getTime()).toBeGreaterThanOrEqual(
+      range.$gte.getTime(),
+    )
     expect(invoiceCreatedAt.getTime()).toBeLessThan(range.$lt.getTime())
   })
 
