@@ -26,13 +26,3 @@ body:
         - [ ] `pnpm check` passes.
     validations:
       required: true
-  - type: dropdown
-    id: area
-    attributes:
-      label: Area
-      options:
-        - tax-invoice-api
-        - web
-        - tooling / docs
-    validations:
-      required: false
