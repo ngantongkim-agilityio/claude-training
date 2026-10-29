@@ -84,6 +84,8 @@ const getInvoiceHistoryMock = jest.fn((req, res) =>
     data: {
       histories: [
         {
+          eventType: 'edited',
+          actor: 'owner@example.com',
           changes: { amount: { old: 100, new: 150 } },
           createdAt: '2025-07-15T10:30:00.000Z',
         },
@@ -209,6 +211,18 @@ describe('Invoice Routes', () => {
       expect(res.body.data.histories).toHaveLength(1)
       expect(res.body.data.histories[0].changes.amount.old).toBe(100)
       expect(res.body.data.histories[0].changes.amount.new).toBe(150)
+      expect(res.body.data.histories[0].actor).toBe('owner@example.com')
+    })
+
+    it('should return 401 without reaching the controller when no token is sent', async () => {
+      authenticateMock.mockImplementationOnce((req, res) =>
+        res.status(401).json({ status: 'error', message: 'Unauthorized' }),
+      )
+
+      const res = await request(app).get('/invoices/INV-001/history')
+
+      expect(res.status).toBe(401)
+      expect(getInvoiceHistoryMock).not.toHaveBeenCalled()
     })
   })
 })

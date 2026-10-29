@@ -2,13 +2,23 @@
 import { invoiceService } from '@/container'
 
 // Models
-import { InvoiceModel } from '@/models'
+import { InvoiceModel, UserModel } from '@/models'
 
 // Utils
-import { generateInvoiceNumber, trackInvoiceChanges } from '@/utils'
+import {
+  ForbiddenError,
+  generateInvoiceNumber,
+  NotFoundError,
+  trackInvoiceChanges,
+} from '@/utils'
 
 // Types
-import { InvoiceStatus, UserRole } from '@/types'
+import {
+  InvoiceEventType,
+  InvoiceHistory,
+  InvoiceStatus,
+  UserRole,
+} from '@/types'
 
 // Mock Mongoose Model Core Layer
 jest.mock('@/models', () => ({
@@ -18,6 +28,11 @@ jest.mock('@/models', () => ({
     findOne: jest.fn(),
     findOneAndUpdate: jest.fn(),
     countDocuments: jest.fn(),
+  },
+  // History reads must never look actors up (actor is an email snapshot)
+  UserModel: {
+    find: jest.fn(),
+    findOne: jest.fn(),
   },
 }))
 
@@ -84,6 +99,24 @@ describe('Invoice Service', () => {
         invoiceNumber: mockInvoice.invoiceNumber,
         status: InvoiceStatus.DRAFT,
       })
+    })
+
+    // Admins can't create invoices (the controller returns 403), so the creator is a user
+    it('should record exactly one created event with the creator as actor', async () => {
+      ;(InvoiceModel.create as jest.Mock).mockResolvedValueOnce({
+        toObject: () => mockInvoice,
+      })
+
+      await invoiceService.createInvoice(mockPayload)
+
+      const { histories } = (InvoiceModel.create as jest.Mock).mock.calls[0][0]
+      expect(histories).toEqual([
+        {
+          eventType: InvoiceEventType.CREATED,
+          actor: mockPayload.user,
+          createdAt: expect.any(Date),
+        },
+      ])
     })
   })
 
@@ -323,11 +356,102 @@ describe('Invoice Service', () => {
       })
 
       expect(submittedInvoiceMock.histories.length).toBe(1)
-      expect(submittedInvoiceMock.histories[0].changes).toEqual(
-        mockTrackedChanges.changes,
-      )
+      expect(submittedInvoiceMock.histories[0]).toEqual({
+        eventType: InvoiceEventType.EDITED,
+        actor: mockPayload.user,
+        changes: mockTrackedChanges.changes,
+        createdAt: expect.any(Date),
+      })
       expect(submittedInvoiceMock.save).toHaveBeenCalled()
       expect(result.updatedFields).toContain('amount')
+    })
+
+    it('should append one edited event and keep earlier entries, legacy ones included, unchanged', async () => {
+      const earlierEntries = [
+        { changes: { tax: { old: 5, new: 10 } }, createdAt: mockDate },
+        {
+          eventType: InvoiceEventType.CREATED,
+          actor: mockPayload.user,
+          createdAt: mockDate,
+        },
+      ]
+      const submittedInvoiceMock = {
+        ...mockInvoice,
+        status: InvoiceStatus.SUBMITTED,
+        histories: structuredClone(earlierEntries),
+        save: jest.fn().mockResolvedValue(true),
+      }
+      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
+        submittedInvoiceMock,
+      )
+      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce({
+        updatedInvoice: { amount: 2000 },
+        changes: { amount: { old: 1000, new: 2000 } },
+      })
+
+      await invoiceService.updateInvoiceInfo({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+        amount: 2000,
+      })
+
+      expect(submittedInvoiceMock.histories).toHaveLength(3)
+      expect(submittedInvoiceMock.histories.slice(0, 2)).toEqual(earlierEntries)
+      expect(submittedInvoiceMock.histories[2].eventType).toBe(
+        InvoiceEventType.EDITED,
+      )
+      expect(submittedInvoiceMock.save).toHaveBeenCalled()
+    })
+
+    it('should save a draft edit without recording an event', async () => {
+      const draftInvoiceMock = {
+        ...mockInvoice,
+        status: InvoiceStatus.DRAFT,
+        histories: [] as InvoiceHistory[],
+        save: jest.fn().mockResolvedValue(true),
+      }
+      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
+        draftInvoiceMock,
+      )
+      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce({
+        updatedInvoice: { amount: 2000 },
+        changes: { amount: { old: 1000, new: 2000 } },
+      })
+
+      const result = await invoiceService.updateInvoiceInfo({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+        amount: 2000,
+      })
+
+      expect(draftInvoiceMock.save).toHaveBeenCalled()
+      expect(draftInvoiceMock.histories).toHaveLength(0)
+      expect(result.updatedFields).toEqual(['amount'])
+    })
+
+    it('should record nothing when a submitted invoice update changes no value', async () => {
+      const submittedInvoiceMock = {
+        ...mockInvoice,
+        status: InvoiceStatus.SUBMITTED,
+        histories: [] as InvoiceHistory[],
+        save: jest.fn().mockResolvedValue(true),
+      }
+      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
+        submittedInvoiceMock,
+      )
+      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce({
+        updatedInvoice: { amount: mockInvoice.amount },
+        changes: {},
+      })
+
+      const result = await invoiceService.updateInvoiceInfo({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+        amount: mockInvoice.amount,
+      })
+
+      expect(submittedInvoiceMock.histories).toHaveLength(0)
+      expect(result.updatedFields).toEqual([])
     })
   })
 
@@ -350,12 +474,62 @@ describe('Invoice Service', () => {
         userEmail: mockPayload.user,
       })
 
+      // The deleted event is pushed in the same write as the soft delete
+      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
       expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { invoiceNumber },
-        { isDeleted: true },
+        { invoiceNumber, isDeleted: { $ne: true } },
+        {
+          $set: { isDeleted: true },
+          $push: {
+            histories: {
+              eventType: InvoiceEventType.DELETED,
+              actor: mockPayload.user,
+              createdAt: expect.any(Date),
+            },
+          },
+        },
         { new: true },
       )
       expect(result).toEqual({ invoiceNumber, deleted: true })
+    })
+
+    it('should return 404 for detail and history once the invoice is deleted', async () => {
+      ;(InvoiceModel.findOne as jest.Mock).mockReturnValue({
+        lean: jest.fn().mockResolvedValue(null),
+      })
+      const reader = {
+        invoiceNumber,
+        userEmail: mockPayload.user,
+        role: UserRole.USER,
+      }
+
+      await expect(
+        invoiceService.getInvoiceByNumber(reader),
+      ).rejects.toBeInstanceOf(NotFoundError)
+      await expect(
+        invoiceService.getInvoiceHistory(reader),
+      ).rejects.toBeInstanceOf(NotFoundError)
+      expect(InvoiceModel.findOne).toHaveBeenCalledWith({
+        invoiceNumber,
+        isDeleted: { $ne: true },
+      })
+    })
+
+    // A concurrent delete flags the invoice first, so this write matches nothing
+    it('should throw NotFoundError if the soft delete matches no live invoice', async () => {
+      ;(InvoiceModel.findOne as jest.Mock).mockReturnValue({
+        lean: jest.fn().mockResolvedValueOnce(mockInvoice),
+      })
+      ;(InvoiceModel.findOneAndUpdate as jest.Mock).mockReturnValue({
+        lean: jest.fn().mockResolvedValueOnce(null),
+      })
+
+      await expect(
+        invoiceService.deleteInvoice({
+          invoiceNumber,
+          userEmail: mockPayload.user,
+        }),
+      ).rejects.toBeInstanceOf(NotFoundError)
     })
 
     it('should throw ConflictError if trying to wipe out validated final state collections', async () => {
@@ -399,6 +573,132 @@ describe('Invoice Service', () => {
 
       expect(result.histories[0].createdAt).toEqual(mockDate.toISOString())
       expect(result.histories[0].changes).toHaveProperty('amount')
+    })
+
+    it('should throw ForbiddenError when another non-admin user reads the history', async () => {
+      ;(InvoiceModel.findOne as jest.Mock).mockReturnValue({
+        lean: jest.fn().mockResolvedValueOnce(mockInvoice),
+      })
+
+      await expect(
+        invoiceService.getInvoiceHistory({
+          invoiceNumber,
+          userEmail: 'other@example.com',
+          role: UserRole.USER,
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenError)
+    })
+  })
+
+  // ================= HISTORY RESPONSE SHAPE =================
+  describe('history entries in list, detail and history responses', () => {
+    const invoiceNumber = mockInvoiceRaw.invoiceNumber
+    const storedHistories = [
+      // Legacy entries, stored before audit tracking
+      {
+        _id: 'h1',
+        changes: { amount: { old: 500, new: 1000 } },
+        createdAt: mockDate,
+      },
+      { _id: 'h2', eventType: null, changes: null, createdAt: mockDate },
+      {
+        _id: 'h3',
+        eventType: InvoiceEventType.CREATED,
+        // Email snapshot; the user may have changed it since
+        actor: 'old.email@example.com',
+        createdAt: mockDate,
+      },
+      {
+        _id: 'h4',
+        eventType: InvoiceEventType.EDITED,
+        actor: 'old.email@example.com',
+        changes: { tax: { old: 10, new: 20 } },
+        createdAt: mockDate,
+      },
+    ]
+    const iso = mockDate.toISOString()
+    const expectedHistories = [
+      {
+        eventType: InvoiceEventType.EDITED,
+        actor: null,
+        changes: { amount: { old: 500, new: 1000 } },
+        createdAt: iso,
+        legacy: true,
+      },
+      {
+        eventType: null,
+        actor: null,
+        changes: {},
+        createdAt: iso,
+        legacy: true,
+      },
+      {
+        eventType: InvoiceEventType.CREATED,
+        actor: 'old.email@example.com',
+        changes: {},
+        createdAt: iso,
+      },
+      {
+        eventType: InvoiceEventType.EDITED,
+        actor: 'old.email@example.com',
+        changes: { tax: { old: 10, new: 20 } },
+        createdAt: iso,
+      },
+    ]
+
+    const storedInvoice = () => ({
+      ...mockInvoice,
+      histories: structuredClone(storedHistories),
+    })
+
+    const readAll = async (userEmail: string, role: UserRole) => {
+      ;(InvoiceModel.findOne as jest.Mock).mockReturnValue({
+        lean: jest.fn().mockResolvedValue(storedInvoice()),
+      })
+      ;(InvoiceModel.find as jest.Mock).mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        sort: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([storedInvoice()]),
+      })
+      ;(InvoiceModel.countDocuments as jest.Mock).mockResolvedValue(1)
+
+      const reader = { invoiceNumber, userEmail, role }
+      const [list, detail, history] = await Promise.all([
+        invoiceService.getInvoices({ userEmail, role, page: 1, limit: 10 }),
+        invoiceService.getInvoiceByNumber(reader),
+        invoiceService.getInvoiceHistory(reader),
+      ])
+
+      return {
+        list: list.invoices[0].histories,
+        detail: detail.histories,
+        history: history.histories,
+      }
+    }
+
+    it.each([
+      ['the owner', mockInvoiceRaw.user, UserRole.USER],
+      ['an admin', 'admin@example.com', UserRole.ADMIN],
+    ])(
+      'should return the same entries, oldest first, through all three responses to %s',
+      async (_label, userEmail, role) => {
+        const { list, detail, history } = await readAll(userEmail, role)
+
+        expect(list).toEqual(expectedHistories)
+        expect(detail).toEqual(expectedHistories)
+        expect(history).toEqual(expectedHistories)
+      },
+    )
+
+    it('should not write to the database or look actors up while reading', async () => {
+      await readAll(mockInvoiceRaw.user, UserRole.USER)
+
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+      expect(InvoiceModel.create).not.toHaveBeenCalled()
+      expect(UserModel.findOne).not.toHaveBeenCalled()
+      expect(UserModel.find).not.toHaveBeenCalled()
     })
   })
 })

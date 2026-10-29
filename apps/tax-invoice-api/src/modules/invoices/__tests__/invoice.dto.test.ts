@@ -1,6 +1,9 @@
 import {
+  CreateInvoiceSchema,
   GetInvoicesQuerySchema,
   GetInvoicesV2QuerySchema,
+  InvoiceHistorySchema,
+  UpdateInvoiceSchema,
 } from '../invoice.dto'
 
 const schemas = {
@@ -31,3 +34,37 @@ describe.each(Object.entries(schemas))(
     )
   },
 )
+
+// History is append-only, so a client-sent histories array must never reach the service
+describe.each(Object.entries({ CreateInvoiceSchema, UpdateInvoiceSchema }))(
+  '%s histories in the body',
+  (_name, schema) => {
+    it('drops a histories key', () => {
+      const result = schema.parse({
+        amount: 100,
+        histories: [{ eventType: 'approved', changes: {} }],
+      })
+
+      expect(result).toEqual({ amount: 100 })
+    })
+  },
+)
+
+describe('InvoiceHistorySchema', () => {
+  it('keeps the event fields of a recorded entry', () => {
+    const entry = {
+      eventType: 'created',
+      actor: 'lan@example.com',
+      changes: {},
+      createdAt: '2026-11-03T02:10:00.000Z',
+    }
+
+    expect(InvoiceHistorySchema.parse(entry)).toEqual(entry)
+  })
+
+  it('accepts a legacy entry with a null eventType and actor', () => {
+    const entry = { eventType: null, actor: null, changes: {}, legacy: true }
+
+    expect(InvoiceHistorySchema.parse(entry)).toEqual(entry)
+  })
+})

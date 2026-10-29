@@ -12,11 +12,12 @@ import {
   ForbiddenError,
   generateInvoiceNumber,
   NotFoundError,
+  toInvoiceHistoryResponse,
   trackInvoiceChanges,
 } from '@/utils'
 
 // Types
-import { InvoiceStatus, UserRole } from '@/types'
+import { InvoiceEventType, InvoiceStatus, UserRole } from '@/types'
 import type {
   InvoiceEntity,
   CreateInvoiceRequestDTO,
@@ -63,7 +64,14 @@ export class InvoiceService extends BaseService<
       description: data.description,
       status: InvoiceStatus.DRAFT,
       isDeleted: false,
-      histories: [],
+      // Every invoice's audit trail starts with who created it
+      histories: [
+        {
+          eventType: InvoiceEventType.CREATED,
+          actor: data.user,
+          createdAt: new Date(),
+        },
+      ],
     }
   }
 
@@ -126,6 +134,7 @@ export class InvoiceService extends BaseService<
       ...invoice,
       createdAt: invoice.createdAt?.toISOString(),
       updatedAt: invoice.updatedAt?.toISOString(),
+      histories: (invoice.histories ?? []).map(toInvoiceHistoryResponse),
     } as unknown as InvoiceResponseDTO
   }
 
@@ -251,6 +260,8 @@ export class InvoiceService extends BaseService<
       Object.keys(changes).length > 0
     ) {
       invoice.histories?.push({
+        eventType: InvoiceEventType.EDITED,
+        actor: userEmail,
         changes,
         createdAt: new Date(),
       })
@@ -306,7 +317,19 @@ export class InvoiceService extends BaseService<
       throw new ConflictError(ERROR_MESSAGE.CANNOT_DELETE)
     }
 
-    await this.softDelete(invoiceNumber)
+    // The deleted event is stored in the same write as the soft delete
+    const deleted = await this.invoiceRepository.softDelete(invoiceNumber, {
+      eventType: InvoiceEventType.DELETED,
+      actor: userEmail,
+      createdAt: new Date(),
+    })
+
+    if (!deleted) {
+      logger.warn('Delete invoice failed - invoice not found', {
+        invoiceNumber,
+      })
+      throw new NotFoundError(ERROR_MESSAGE.INVOICE_NOT_FOUND)
+    }
 
     logger.info('Delete invoice successful', {
       invoiceNumber,
@@ -346,10 +369,7 @@ export class InvoiceService extends BaseService<
     }
 
     return {
-      histories: (invoice.histories ?? []).map((history) => ({
-        changes: history.changes ?? {},
-        createdAt: history.createdAt?.toISOString(),
-      })),
+      histories: (invoice.histories ?? []).map(toInvoiceHistoryResponse),
     }
   }
 }

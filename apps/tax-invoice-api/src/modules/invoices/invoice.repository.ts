@@ -1,6 +1,10 @@
 import { InvoiceModel } from '@/models'
-import { InvoiceStatus, UserRole } from '@/types'
-import { escapeRegExp, getDateRangeUTC } from '@/utils'
+import { InvoiceHistory, InvoiceStatus, UserRole } from '@/types'
+import {
+  escapeRegExp,
+  getDateRangeUTC,
+  toInvoiceHistoryResponse,
+} from '@/utils'
 import type { BaseRepository } from '@/core/base.repository'
 import type {
   InvoiceEntity,
@@ -111,10 +115,7 @@ export class InvoiceRepository implements BaseRepository<
         ...invoice,
         createdAt: invoice.createdAt?.toISOString(),
         updatedAt: invoice.updatedAt?.toISOString(),
-        histories: invoice.histories?.map((h: any) => ({
-          changes: h.changes,
-          createdAt: h.createdAt?.toISOString(),
-        })),
+        histories: invoice.histories?.map(toInvoiceHistoryResponse),
       })),
       pagination: {
         page,
@@ -156,11 +157,20 @@ export class InvoiceRepository implements BaseRepository<
 
   /**
    * Flags an existing object instance as deleted without destroying the structural log.
+   * An optional history event is appended in the same update, so the flag and its audit
+   * entry are written together. Matching only live invoices keeps a concurrent second
+   * delete from appending a duplicate deleted event.
    */
-  async softDelete(invoiceNumber: string): Promise<InvoiceEntity | null> {
+  async softDelete(
+    invoiceNumber: string,
+    event?: InvoiceHistory,
+  ): Promise<InvoiceEntity | null> {
     const invoice = await InvoiceModel.findOneAndUpdate(
-      { invoiceNumber },
-      { isDeleted: true },
+      { invoiceNumber, isDeleted: { $ne: true } },
+      {
+        $set: { isDeleted: true },
+        ...(event && { $push: { histories: event } }),
+      },
       { new: true },
     ).lean()
 

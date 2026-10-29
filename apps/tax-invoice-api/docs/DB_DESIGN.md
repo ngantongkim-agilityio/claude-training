@@ -27,8 +27,9 @@ classDiagram
 
   %% ===== Subdocument inside Invoice =====
   class InvoiceHistory {
-    +string description
-    +object changes
+    +string eventType  // 'created' | 'edited' | 'submitted' | 'resubmitted' | 'approved' | 'rejected' | 'deleted', absent on legacy entries
+    +string actor  // email snapshot at the time of the action, never joined to User
+    +object changes  // field to old and new values, edits only
     +Date createdAt
   }
 

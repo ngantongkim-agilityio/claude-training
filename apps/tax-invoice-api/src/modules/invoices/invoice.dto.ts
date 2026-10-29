@@ -1,7 +1,12 @@
 import { z } from 'zod'
 import { ERROR_MESSAGE } from '@/constants'
 import { PaginationSchema, PaginationMetaSchema } from '@/schemas/pagination'
-import { InvoiceStatus, UserRole } from '@/types'
+import {
+  InvoiceEventType,
+  InvoiceHistory,
+  InvoiceStatus,
+  UserRole,
+} from '@/types'
 
 /**
  * Request Schemas
@@ -48,7 +53,12 @@ export const GetInvoicesV2QuerySchema = GetInvoicesQuerySchema.extend({
  * Response Schemas
  */
 export const InvoiceHistorySchema = z.object({
+  // null only for legacy entries whose type can't be inferred
+  eventType: z.enum(InvoiceEventType).nullable(),
+  // null for legacy entries, which never recorded who acted
+  actor: z.string().nullable(),
   changes: z.record(z.string(), z.unknown()),
+  legacy: z.literal(true).optional(),
   createdAt: z.string().optional(), // Changed to string for API JSON consistency
 })
 
@@ -108,7 +118,7 @@ export type InvoiceEntity = {
   tax?: number
   description?: string
   isDeleted?: boolean
-  histories: Array<{ changes: Record<string, unknown>; createdAt?: Date }>
+  histories: InvoiceHistory[]
   createdAt: Date
   updatedAt: Date
 }
