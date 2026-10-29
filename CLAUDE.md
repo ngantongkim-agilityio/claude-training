@@ -22,7 +22,7 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `.github/pull_request_template.md` — GitHub PR description template (Summary, Changes, Testing, Risks, Checklist).
 - `.github/workflows/` — Claude PR assistant (`claude.yml`), automated PR review (`claude-code-review.yml`), and CI quality gate (`ci.yml`: `pnpm check` on pushes/PRs to `main`).
 
-Issues are tracked in GitHub Issues on `ngantongkim-agilityio/claude-training` (the `github` remote). `origin` (GitLab) still hosts the code.
+Tasks are tracked as Jira tickets in project KAN on `claude-training-dev.atlassian.net`, the source of truth for requirements, acceptance criteria, dependencies and status; read and write it through the Atlassian MCP. `docs/tickets/` holds a short summary of each ticket. `origin` is GitHub, the primary remote for code, PRs and CI; `gitlab` is a mirror that is never pushed to for feature work.
 
 When adding apps, give each one `check`, `build`, and `lint` scripts so the `turbo.json` tasks cover them.
 
@@ -34,10 +34,10 @@ When adding apps, give each one `check`, `build`, and `lint` scripts so the `tur
 
 ## Shared rules
 
-1. **Never push directly to `main`.** All work goes on a feature branch (`<type>/<slug>`, see `.claude/rules/git-conventions.md`) and merges via merge request. A Claude Code hook blocks `git push` to `main` and `--force` variants inside Claude sessions; GitLab branch protection enforces this server-side (local hooks are fast feedback, protection is the real gate).
-2. **Never force-push** (`--force`, `--force-with-lease`, `-f`). Blocked by Claude hook; GitLab push rules are the authoritative enforcement.
+1. **Never push directly to `main`.** All work goes on a feature branch (`<type>/<slug>`, see `.claude/rules/git-conventions.md`) and merges via a pull request on `origin` (GitHub). A Claude Code hook blocks `git push` to `main` and `--force` variants inside Claude sessions. Server-side enforcement needs GitHub branch protection on `main`, which is not enabled yet; until it is, the hook is the only guard.
+2. **Never force-push** (`--force`, `--force-with-lease`, `-f`). Blocked by the Claude hook; GitHub branch protection should be the authoritative enforcement once enabled.
 3. **Plan then implement.** Non-trivial work: explore first, write/confirm a plan, then implement.
-4. **Verify before claiming done.** `pnpm check` (when applicable), diff reviewed, no unrelated changes in the MR. No `Makefile` or `pre-commit` is used in this repository.
-5. **Keep MRs focused.** One ticket per MR, squash-merged. All discussion threads resolved before merge.
+4. **Verify before claiming done.** `pnpm check` (when applicable), diff reviewed, no unrelated changes in the PR. No `Makefile` or `pre-commit` is used in this repository.
+5. **Keep PRs focused.** One ticket per PR, squash-merged. All review threads resolved before merge.
 6. **Do not commit secrets.** No tokens, keys, or credentials in code, docs, or logs.
 7. **Match surrounding style.** Docs use GitHub-flavored Markdown; shell scripts use `#!/bin/sh` (POSIX, macOS-compatible).
