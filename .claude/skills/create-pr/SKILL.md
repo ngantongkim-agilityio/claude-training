@@ -32,10 +32,9 @@ fills the template itself and passes the result with `--body-file`.
    branch. Use its sections, in order, as the description outline.
 2. **Fill it.** Base every section on `git log main..HEAD` and
    `git diff main...HEAD`, plus gate output observed in this session.
-   Summary: what and why, plus the Jira key and link (from `$ARGUMENTS`
-   when given). Testing: real results only; anything not run is labelled
-   "not run". Tick checklist items only when true. Remove all `<!-- -->`
-   guidance comments and empty placeholder bullets.
+   Follow [Body format](#body-format); where it is stricter than the
+   template's guidance comments, it wins. Remove all `<!-- -->` guidance
+   comments and empty placeholder bullets.
 3. **Write the body to a file** outside the repository (for example
    `mktemp`). Never add it to the commit.
 4. **Approval.** Show the title (`type(scope): description`, matching the
@@ -53,6 +52,31 @@ fills the template itself and passes the result with `--body-file`.
 
 6. **Stop.** Report the PR URL. Never merge, enable auto-merge, transition
    Jira tickets, or tag.
+
+## Body format
+
+Keep the body short enough to read in under a minute. Say each fact once,
+in the section it belongs to.
+
+- **Summary:** one or two sentences on what changes and why, then the Jira
+  key and link (from `$ARGUMENTS` when given).
+- **Changes:** three to five high-level bullets by behaviour or area. No
+  file-by-file lists, no exhaustive test IDs or case names.
+- **Testing:** the key commands run and their results, one bullet each
+  (for example `pnpm check` — passed). Anything not run is labelled
+  "not run".
+- **Risks and follow-ups:** only actionable risks or follow-up work. Omit
+  the section when there are none; do not write "None".
+- **Checklist:** only the template items that apply, each a ticked
+  `- [x]` line. Delete an item that does not apply (for example the docs
+  item when no other docs describe the changed behaviour). If an item
+  applies but is not true, fix that before the PR or raise it under
+  Risks; never leave an unchecked box. Never add items or repeat test
+  results here.
+
+Omit any section that would be empty. Leave out completed review history
+(resolved comments, earlier iterations, reviewer verdicts), restated
+ticket text, and implementation detail the diff already shows.
 
 ## Test and validation claims
 
