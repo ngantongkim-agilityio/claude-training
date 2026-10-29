@@ -12,6 +12,7 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `turbo.json` — Turborepo pipeline (`check`, `build`, `lint`, `test`, `typecheck`).
 - `apps/` — workspace packages (`tax-invoice-api`: Tax Invoice API; per-app `CLAUDE.md` inside each app).
 - `packages/` — shared configs (`typescript-config`, `eslint-config`).
+- `docs/` — planning docs: `features/<slug>/intent.md` (what, why, constraints; links the supporting spec and Jira tickets) and `tickets/` (a short summary per Jira ticket for readers without Jira access; Jira stays authoritative). API contracts stay in `apps/tax-invoice-api/docs/`.
 - `exercises/` — Day 01–03 training materials.
 - `.claude/settings.json` — Claude Code permissions and PreToolUse hook wiring.
 - `.claude/hooks/block-forbidden-command.mjs` — Claude Code guard blocking `git push` to `main` / force pushes.
