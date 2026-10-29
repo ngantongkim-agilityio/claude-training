@@ -29,7 +29,7 @@ pnpm --filter @repo/api check       # API quality gate: typecheck + lint + tests
 
 ## Workflow
 
-1. Pick or file a [GitHub issue](https://github.com/ngantongkim-agilityio/claude-training/issues) using the bug, feature, or chore form (in Claude Code: `/create-issue`).
+1. Pick a Jira ticket in project [KAN](https://claude-training-dev.atlassian.net/browse/KAN), or draft a new one (in Claude Code: `/create-ticket`). In Claude Code the flow is `/analyze-ticket` → `/plan-ticket` → `/implement-ticket` → `/ship-ticket`.
 2. Create a task branch from `main` and make focused changes (one ticket per branch).
 3. Run the relevant checks above.
 4. Push the branch to `origin` (GitHub) and open a pull request against `main`. PRs use [.github/pull_request_template.md](.github/pull_request_template.md) and reference the Jira key (for example `KAN-6`). The `gitlab` remote is a mirror; never push feature branches there.

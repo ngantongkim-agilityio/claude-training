@@ -1,20 +1,21 @@
 ---
-name: plan-issue
-description: Write a concise implementation plan for a ready GitLab issue — affected files, API contract implications, steps each with a verify command, test strategy — then stop for approval. Use when asked to plan an issue, e.g. "plan issue 23", "how would you build issue 23".
-argument-hint: "<issue-iid>"
+name: plan-ticket
+description: Write a concise implementation plan for a ready Jira ticket (project KAN) — affected files, API contract implications, steps each with a verify command, test strategy — then stop for approval. Use when asked to plan a ticket, e.g. "plan KAN-6", "how would you build KAN-6".
+argument-hint: "<KAN-key>"
 ---
 
-# Plan an issue
+# Plan a ticket
 
-Planning pass for one GitLab issue, `#<iid>`. This skill is **write-free**:
-it reads, investigates, and presents a plan. It creates no branch, no
-commit, no push, and no GitLab write. Branching and implementation begin
-only after the user approves the plan, outside this skill.
+Planning pass for one Jira ticket, `KAN-<n>`, read with `getJiraIssue`. This
+skill is **write-free**: it reads, investigates, and presents a plan. It
+creates no branch, no commit, no push, and no Jira write. Branching and
+implementation begin only after the user approves the plan, in
+`implement-ticket`.
 
 ## Precheck (all mandatory, else stop)
 
-1. The issue is ready: acceptance criteria or reproduction steps are present.
-   Absent → stop and hand back to `analyze-issue <iid>`.
+1. The ticket is ready: acceptance criteria or reproduction steps are present.
+   Absent → stop and hand back to `analyze-ticket <KAN-key>`.
 2. The working tree contains no unrelated changes you would build on top of.
    Report `git status` as observed; do not clean anything up yourself.
 3. Assess whether local `main` looks current from local information only
@@ -38,9 +39,9 @@ only after the user approves the plan, outside this skill.
    `CONTRIBUTING.md` (`pnpm check`, `pnpm --filter @repo/api check`). All
    package commands use pnpm exclusively, per the app rules.
 3. **Present and stop.** Show the plan, then end the turn with an explicit
-   approval request. Do not implement, branch, commit, push, or open an MR
+   approval request. Do not implement, branch, commit, push, or open a PR
    in this skill under any reading of the approval — approval of the plan
-   authorizes a later implementation pass, not writes inside this one.
+   authorizes `implement-ticket <KAN-key>`, not writes inside this one.
 
 ## Test and validation claims
 
