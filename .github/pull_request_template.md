@@ -6,13 +6,13 @@ Remove these guidance comments before creating the PR.
 
 ## Summary
 
-<!-- What changes and why, in one to three sentences. -->
+<!-- What changes and why, in one or two sentences. -->
 
 <!-- Jira ticket: `KAN-N` with its link, https://claude-training-dev.atlassian.net/browse/KAN-N. -->
 
 ## Changes
 
-<!-- One bullet per file or area: what changed there and why. -->
+<!-- Three to five high-level bullets by behaviour or area. No file-by-file lists or exhaustive test IDs. -->
 
 -
 
@@ -28,12 +28,14 @@ Call out failures that already happen on `main`.
 
 ## Risks and follow-ups
 
-<!-- Behaviour changes, setup or migration notes, deferred work. Write "None" if there are none. -->
+<!-- Actionable risks or follow-ups only: behaviour changes, setup or migration notes, deferred work. Remove this section if there are none. -->
 
 ## Checklist
 
-- [ ] Branch is `<type>/<slug>` from `main` and covers one ticket
-- [ ] Commit subject follows `type(scope): description`
-- [ ] No secrets, tokens, or `.env` values committed
-- [ ] Docs updated where behaviour changed (`CLAUDE.md`, `CONTRIBUTING.md`, app `README.md`)
-- [ ] `pnpm check` run, or any failure explained under Testing
+<!-- Keep only items that apply, and tick each one you keep. The docs item applies only when behaviour changed outside the files in this PR. -->
+
+- [ ] Focused `<type>/<slug>` branch
+- [ ] Commits follow `type(scope): description`
+- [ ] No secrets committed
+- [ ] Checks pass, as listed under Testing
+- [ ] Related docs updated
