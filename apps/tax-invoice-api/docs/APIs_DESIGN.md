@@ -76,14 +76,14 @@ GET /users?email=user&page=1&limit=10
 
 ## 🧾 Invoices APIs
 
-| Method | Endpoint      | Auth | Description                                                                    |
-| ------ | ------------- | ---- | ------------------------------------------------------------------------------ |
-| GET    | /invoices     | 🔒   | Get list of invoices                                                           |
-| GET    | /invoices/:id | 🔒   | Get detail of 1 invoice                                                        |
-| POST   | /invoices     | 🔒   | Create a new invoice (initial status: `draft`)                                 |
-| PUT    | /invoices/:id | 🔒   | Update invoice. Changes made after submission are recorded in invoice history. |
-| PATCH  | /invoices/:id | 🔒   | Update invoice status (`draft → submitted`, `submitted → approved/rejected`).  |
-| DELETE | /invoices/:id | 🔒   | Soft delete invoice (`isDeleted = true`).                                      |
+| Method | Endpoint      | Auth | Description                                                                              |
+| ------ | ------------- | ---- | ---------------------------------------------------------------------------------------- |
+| GET    | /invoices     | 🔒   | Get list of invoices                                                                     |
+| GET    | /invoices/:id | 🔒   | Get detail of 1 invoice                                                                  |
+| POST   | /invoices     | 🔒   | Create a new invoice (initial status: `draft`). Records a `created` event.               |
+| PUT    | /invoices/:id | 🔒   | Update invoice. Changes to a submitted invoice record an `edited` event.                 |
+| PATCH  | /invoices/:id | 🔒   | Update invoice status (`draft → submitted`, `submitted → approved/rejected`).            |
+| DELETE | /invoices/:id | 🔒   | Soft delete invoice (`isDeleted = true`) and record a `deleted` event in the same write. |
 
 ### Query Parameters
 
@@ -116,6 +116,22 @@ GET /invoices?sortBy=updatedAt&order=asc
 | Method | Endpoint              | Auth | Description                 |
 | ------ | --------------------- | ---- | --------------------------- |
 | GET    | /invoices/:id/history | 🔒   | Get history log for invoice |
+
+Append-only audit trail, oldest first. Owner or admin: `200`; other user: `403`; unknown or deleted invoice: `404`;
+no token: `401`. `GET /invoices` and `GET /invoices/:id` embed the same entries in `histories`.
+
+| Field       | Type           | Description                                                                        |
+| ----------- | -------------- | ---------------------------------------------------------------------------------- |
+| `eventType` | string \| null | `created`, `edited`, `submitted`, `resubmitted`, `approved`, `rejected`, `deleted` |
+| `actor`     | string \| null | Email of the user who acted, as it was at that time                                |
+| `changes`   | object         | `{ field: { old, new } }`; `{}` when nothing changed                               |
+| `createdAt` | string         | Server timestamp (ISO 8601)                                                        |
+| `legacy`    | `true`         | Only on entries stored before audit tracking                                       |
+
+- `edited` is recorded only when `PUT` changes a value on a submitted invoice.
+- `submitted`, `approved`, `rejected` and `resubmitted` are reserved for later status-workflow changes.
+- Legacy entries are normalized on read and never rewritten: `actor: null`, and `eventType` is `edited` if they hold
+  changes, otherwise `null` with `changes: {}`.
 
 ---
 

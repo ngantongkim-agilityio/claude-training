@@ -39,6 +39,15 @@ export const unauthorized = () => ({
   },
 })
 
+export const forbidden = () => ({
+  description: 'Forbidden',
+  content: {
+    'application/json': {
+      schema: ErrorResponseSchema,
+    },
+  },
+})
+
 export const conflict = () => ({
   description: 'Conflict',
   content: {

@@ -1,5 +1,10 @@
 // Types
-import { InvoiceStatus } from '@/types'
+import {
+  InvoiceEventType,
+  InvoiceHistory,
+  InvoiceHistoryEntry,
+  InvoiceStatus,
+} from '@/types'
 
 /**
  * Generates a unique invoice number string
@@ -57,4 +62,35 @@ export const trackInvoiceChanges = <T extends InvoiceUpdateFields>(
   })
 
   return { updatedInvoice, changes }
+}
+
+/**
+ * Maps a stored history entry to the shape shared by the list, detail and history responses.
+ * Legacy entries (written before audit tracking) have no eventType. They are normalized here
+ * on every read and never written back. Only a legacy entry holding field changes is shown as
+ * an edit, because the old write path recorded nothing but edits; any other stays untyped.
+ */
+export const toInvoiceHistoryResponse = (
+  history: InvoiceHistory,
+): InvoiceHistoryEntry => {
+  const changes = history.changes ?? {}
+  const createdAt = history.createdAt?.toISOString()
+
+  if (!history.eventType) {
+    return {
+      eventType:
+        Object.keys(changes).length > 0 ? InvoiceEventType.EDITED : null,
+      actor: null,
+      changes,
+      createdAt,
+      legacy: true,
+    }
+  }
+
+  return {
+    eventType: history.eventType,
+    actor: history.actor ?? null,
+    changes,
+    createdAt,
+  }
 }

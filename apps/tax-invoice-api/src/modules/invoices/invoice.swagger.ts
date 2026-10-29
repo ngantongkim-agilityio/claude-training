@@ -5,6 +5,7 @@ import {
   bearerAuth,
   badRequest,
   unauthorized,
+  forbidden,
   notFound,
   conflict,
   successResponse,
@@ -21,6 +22,7 @@ import {
   UpdateInvoiceStatusResponseSchema,
   UpdateInvoiceInfoResponseSchema,
   DeleteInvoiceResponseSchema,
+  GetInvoiceHistoryResponseSchema,
   GetInvoicesResponseSchema,
 } from './invoice.dto'
 
@@ -191,6 +193,30 @@ export const registerInvoiceSwagger = (registry: OpenAPIRegistry) => {
       401: unauthorized(),
       404: notFound(),
       409: conflict(),
+    },
+  })
+
+  registry.registerPath({
+    method: 'get',
+    path: '/invoices/{invoiceNumber}/history',
+    tags: ['Invoices'],
+    security: [bearerAuth],
+    summary: 'Get invoice history (oldest first)',
+    request: {
+      params: InvoiceParamsSchema,
+    },
+    responses: {
+      200: {
+        description: 'Invoice audit events, oldest first',
+        content: {
+          'application/json': {
+            schema: successResponse(GetInvoiceHistoryResponseSchema),
+          },
+        },
+      },
+      401: unauthorized(),
+      403: forbidden(),
+      404: notFound(),
     },
   })
 }
