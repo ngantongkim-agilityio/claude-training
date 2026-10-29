@@ -28,10 +28,10 @@ One ticket = one branch = one PR. Never push to `main`, force-push, or bypass ho
 - Resolve all review threads before merging, and delete the branch after merging.
 - Creating a PR requires explicit user approval. Show the draft title and description first. Never merge a PR, transition a Jira ticket, or tag.
 
-## Issues
+## Jira tickets
 
-- File issues with the GitHub forms or the `create-issue` skill, which passes the drafted body with `gh issue create --body-file <file>`.
-- Creating an issue requires explicit user approval. Show the draft title, labels, and body first. Never edit, close, or reopen existing issues unasked.
+- Create Jira tickets with the `create-ticket` skill, which uses the Atlassian MCP.
+- Creating a ticket requires explicit user approval. Show the draft summary, type, priority, labels, and description first. Never edit, transition, comment on, or delete existing tickets unasked.
 
 ## Protections
 
