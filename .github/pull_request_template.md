@@ -8,7 +8,7 @@ Remove these guidance comments before creating the PR.
 
 <!-- What changes and why, in one to three sentences. -->
 
-<!-- Link the GitHub issue: `Closes #N`. Legacy GitLab issue: `Related to <GitLab issue URL>`. -->
+<!-- Jira ticket: `KAN-N` with its link, https://claude-training-dev.atlassian.net/browse/KAN-N. -->
 
 ## Changes
 

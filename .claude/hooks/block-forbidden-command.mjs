@@ -459,7 +459,7 @@ export function checkArgv(argv, branch) {
     if (deleteMode) {
       return "Blocked: deleting the remote main branch is not allowed.";
     }
-    return "Blocked: direct pushes to main are not allowed (use a feature branch and a merge request).";
+    return "Blocked: direct pushes to main are not allowed (use a feature branch and a pull request).";
   }
 
   // Bare `git push` (or `... HEAD` with no other refspecs) follows the
@@ -468,7 +468,7 @@ export function checkArgv(argv, branch) {
     positionals.length === 0 ||
     (positionals.length === 1 && positionals[0] === "HEAD");
   if (bare && branch === "main") {
-    return "Blocked: pushing the main branch is not allowed (use a feature branch and a merge request).";
+    return "Blocked: pushing the main branch is not allowed (use a feature branch and a pull request).";
   }
 
   return null;
