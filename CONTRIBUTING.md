@@ -25,6 +25,7 @@
 ```bash
 pnpm check                          # run workspace checks via Turborepo
 pnpm --filter @repo/api check       # API quality gate: typecheck + lint + tests (needs API env vars, see above)
+pnpm --filter @repo/web check       # web quality gate: typecheck + lint + tests
 ```
 
 ## Workflow

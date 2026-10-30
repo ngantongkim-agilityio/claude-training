@@ -11,6 +11,8 @@ import { StatusBadge } from "@/features/invoices/components/status-badge"
 import { EditInvoiceForm } from "@/features/invoices/components/edit-invoice-form"
 import { InvoiceStatusActions } from "@/features/invoices/components/invoice-status-actions"
 import { DeleteInvoiceButton } from "@/features/invoices/components/delete-invoice-button"
+import { InvoiceHistory } from "@/features/invoices/components/invoice-history"
+import { formatAmount } from "@/utils/format"
 
 const DetailRow = ({
   label,
@@ -113,17 +115,8 @@ const InvoiceDetailPage = () => {
       ) : (
         <div className="rounded-lg border p-4">
           <div className="divide-y">
-            <DetailRow label="Amount">
-              $
-              {invoice.amount.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
-            </DetailRow>
-            <DetailRow label="Tax">
-              {invoice.tax != null
-                ? `$${invoice.tax.toLocaleString("en-US", { minimumFractionDigits: 2 })}`
-                : "—"}
-            </DetailRow>
+            <DetailRow label="Amount">{formatAmount(invoice.amount)}</DetailRow>
+            <DetailRow label="Tax">{formatAmount(invoice.tax)}</DetailRow>
             <DetailRow label="Description">
               {invoice.description || "—"}
             </DetailRow>
@@ -136,6 +129,8 @@ const InvoiceDetailPage = () => {
           </div>
         </div>
       )}
+
+      <InvoiceHistory histories={invoice.histories ?? []} />
     </div>
   )
 }

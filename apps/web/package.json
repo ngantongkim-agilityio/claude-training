@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint src --fix",
     "test": "jest",
-    "check": "tsc --noEmit && eslint src",
+    "check": "tsc --noEmit && eslint src && jest",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
