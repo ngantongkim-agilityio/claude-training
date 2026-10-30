@@ -1,11 +1,15 @@
 // Service
 import { invoiceService } from '@/container'
 
+// Constants
+import { ERROR_MESSAGE } from '@/constants'
+
 // Models
 import { InvoiceModel, UserModel } from '@/models'
 
 // Utils
 import {
+  ConflictError,
   ForbiddenError,
   generateInvoiceNumber,
   NotFoundError,
@@ -262,16 +266,41 @@ describe('Invoice Service', () => {
   // ================= UPDATE STATUS WORKFLOW =================
   describe('updateInvoiceStatus', () => {
     const invoiceNumber = mockInvoiceRaw.invoiceNumber
+    const adminEmail = 'admin@example.com'
 
-    it('should allow users to advance a DRAFT status to SUBMITTED status', async () => {
-      const mutableInvoiceMock = {
+    const givenStoredInvoice = (overrides: Record<string, unknown>) => {
+      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce({
         ...mockInvoice,
-        status: InvoiceStatus.DRAFT,
-        save: jest.fn().mockResolvedValue(true),
-      }
-      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
-        mutableInvoiceMock,
+        ...overrides,
+      })
+    }
+
+    // The guarded update returns the updated invoice, or null when nothing matched
+    const givenGuardedUpdate = (result: Record<string, unknown> | null) => {
+      ;(InvoiceModel.findOneAndUpdate as jest.Mock).mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValueOnce(result),
+      })
+    }
+
+    const expectGuardedUpdate = (
+      fromStatus: InvoiceStatus,
+      toStatus: InvoiceStatus,
+      event: Record<string, unknown>,
+    ) => {
+      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
+      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { invoiceNumber, isDeleted: { $ne: true }, status: fromStatus },
+        {
+          $set: { status: toStatus },
+          $push: { histories: { ...event, createdAt: expect.any(Date) } },
+        },
+        { new: true },
       )
+    }
+
+    it('should record a submitted event with the owner when a draft is submitted', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.DRAFT })
+      givenGuardedUpdate({ ...mockInvoice, status: InvoiceStatus.SUBMITTED })
 
       const result = await invoiceService.updateInvoiceStatus({
         invoiceNumber,
@@ -280,49 +309,149 @@ describe('Invoice Service', () => {
         role: UserRole.USER,
       })
 
-      expect(mutableInvoiceMock.status).toEqual(InvoiceStatus.SUBMITTED)
-      expect(mutableInvoiceMock.save).toHaveBeenCalled()
+      expectGuardedUpdate(InvoiceStatus.DRAFT, InvoiceStatus.SUBMITTED, {
+        eventType: InvoiceEventType.SUBMITTED,
+        actor: mockPayload.user,
+      })
       expect(result).toEqual({ invoiceNumber, status: InvoiceStatus.SUBMITTED })
     })
 
-    it('should allow ADMIN to approve a SUBMITTED invoice', async () => {
-      const mutableInvoiceMock = {
-        ...mockInvoice,
-        status: InvoiceStatus.SUBMITTED,
-        save: jest.fn().mockResolvedValue(true),
-      }
-      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
-        mutableInvoiceMock,
-      )
+    it('should record a rejected event with the admin and the reason', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
+      givenGuardedUpdate({ ...mockInvoice, status: InvoiceStatus.REJECTED })
+
+      const result = await invoiceService.updateInvoiceStatus({
+        invoiceNumber,
+        status: InvoiceStatus.REJECTED,
+        reason: 'Tax should be 10%',
+        userEmail: adminEmail,
+        role: UserRole.ADMIN,
+      })
+
+      expectGuardedUpdate(InvoiceStatus.SUBMITTED, InvoiceStatus.REJECTED, {
+        eventType: InvoiceEventType.REJECTED,
+        actor: adminEmail,
+        reason: 'Tax should be 10%',
+      })
+      expect(result).toEqual({ invoiceNumber, status: InvoiceStatus.REJECTED })
+    })
+
+    it('should record an approved event with the comment when one is given', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
+      givenGuardedUpdate({ ...mockInvoice, status: InvoiceStatus.APPROVED })
 
       const result = await invoiceService.updateInvoiceStatus({
         invoiceNumber,
         status: InvoiceStatus.APPROVED,
-        userEmail: 'admin@example.com',
+        comment: 'Matches PO-2291',
+        userEmail: adminEmail,
         role: UserRole.ADMIN,
       })
 
-      expect(mutableInvoiceMock.status).toEqual(InvoiceStatus.APPROVED)
-      expect(result.status).toEqual(InvoiceStatus.APPROVED)
+      expectGuardedUpdate(InvoiceStatus.SUBMITTED, InvoiceStatus.APPROVED, {
+        eventType: InvoiceEventType.APPROVED,
+        actor: adminEmail,
+        comment: 'Matches PO-2291',
+      })
+      expect(result).toEqual({ invoiceNumber, status: InvoiceStatus.APPROVED })
     })
 
-    it('should throw ConflictError if trying to modify final state statuses like APPROVED', async () => {
-      const finalInvoiceMock = {
-        ...mockInvoice,
-        status: InvoiceStatus.APPROVED,
-      }
-      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
-        finalInvoiceMock,
-      )
+    it.each([
+      ['no comment', undefined],
+      ['an empty comment', ''],
+    ])(
+      'should record an approved event without a comment key for %s',
+      async (_label, comment) => {
+        givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
+        givenGuardedUpdate({ ...mockInvoice, status: InvoiceStatus.APPROVED })
+
+        await invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.APPROVED,
+          comment,
+          userEmail: adminEmail,
+          role: UserRole.ADMIN,
+        })
+
+        const update = (InvoiceModel.findOneAndUpdate as jest.Mock).mock
+          .calls[0][1]
+        expect(update.$push.histories).not.toHaveProperty('comment')
+        expect(update.$push.histories).not.toHaveProperty('reason')
+      },
+    )
+
+    it('should throw NotFoundError and write nothing for an unknown invoice', async () => {
+      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(null)
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.APPROVED,
+          userEmail: adminEmail,
+          role: UserRole.ADMIN,
+        }),
+      ).rejects.toBeInstanceOf(NotFoundError)
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it('should throw ForbiddenError and write nothing for another user', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.DRAFT })
 
       await expect(
         invoiceService.updateInvoiceStatus({
           invoiceNumber,
           status: InvoiceStatus.SUBMITTED,
-          userEmail: 'admin@example.com',
+          userEmail: 'attacker@example.com',
+          role: UserRole.USER,
+        }),
+      ).rejects.toMatchObject({ message: ERROR_MESSAGE.FORBIDDEN })
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it.each([InvoiceStatus.APPROVED, InvoiceStatus.REJECTED])(
+      'should throw ConflictError and write nothing when the invoice is %s',
+      async (currentStatus) => {
+        givenStoredInvoice({ status: currentStatus })
+
+        await expect(
+          invoiceService.updateInvoiceStatus({
+            invoiceNumber,
+            status: InvoiceStatus.SUBMITTED,
+            userEmail: adminEmail,
+            role: UserRole.ADMIN,
+          }),
+        ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE))
+        expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+      },
+    )
+
+    it('should keep 403 INVALID_STATUS and write nothing when an owner tries to approve', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.APPROVED,
+          userEmail: mockPayload.user,
+          role: UserRole.USER,
+        }),
+      ).rejects.toEqual(new ForbiddenError(ERROR_MESSAGE.INVALID_STATUS))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it('should throw ConflictError when another request changed the status first', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
+      givenGuardedUpdate(null)
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.REJECTED,
+          reason: 'Tax should be 10%',
+          userEmail: adminEmail,
           role: UserRole.ADMIN,
         }),
-      ).rejects.toThrow()
+      ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE))
     })
   })
 

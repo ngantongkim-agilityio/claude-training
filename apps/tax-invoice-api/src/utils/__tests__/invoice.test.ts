@@ -78,6 +78,37 @@ describe('toInvoiceHistoryResponse', () => {
     },
   )
 
+  it.each([
+    [InvoiceEventType.REJECTED, { reason: 'Tax should be 10%' }],
+    [InvoiceEventType.APPROVED, { comment: 'Matches PO-2291' }],
+  ])('should keep the reason or comment of a %s event', (eventType, note) => {
+    const result = toInvoiceHistoryResponse({
+      eventType,
+      actor: 'admin@example.com',
+      ...note,
+      createdAt,
+    })
+
+    expect(result).toEqual({
+      eventType,
+      actor: 'admin@example.com',
+      ...note,
+      changes: {},
+      createdAt: '2026-11-03T02:10:00.000Z',
+    })
+  })
+
+  it('should add no reason or comment keys to events that have none', () => {
+    const result = toInvoiceHistoryResponse({
+      eventType: InvoiceEventType.APPROVED,
+      actor: 'admin@example.com',
+      createdAt,
+    })
+
+    expect(result).not.toHaveProperty('reason')
+    expect(result).not.toHaveProperty('comment')
+  })
+
   it('should drop stored fields outside the response shape', () => {
     const result = toInvoiceHistoryResponse({
       _id: 'subdocument-id',

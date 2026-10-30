@@ -29,6 +29,8 @@ classDiagram
   class InvoiceHistory {
     +string eventType  // 'created' | 'edited' | 'submitted' | 'resubmitted' | 'approved' | 'rejected' | 'deleted', absent on legacy entries
     +string actor  // email snapshot at the time of the action, never joined to User
+    +string reason  // rejected events only: the admin's trimmed reason
+    +string comment  // approved events only, when the admin gave one
     +object changes  // field to old and new values, edits only
     +Date createdAt
   }

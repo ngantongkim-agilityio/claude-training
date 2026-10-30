@@ -112,6 +112,8 @@ export const registerInvoiceSwagger = (registry: OpenAPIRegistry) => {
     tags: ['Invoices'],
     security: [bearerAuth],
     summary: 'Update invoice status',
+    description:
+      'The new status and its `submitted`, `approved` or `rejected` history event are saved in one atomic write.',
     request: {
       params: InvoiceParamsSchema,
       body: {
@@ -132,10 +134,24 @@ export const registerInvoiceSwagger = (registry: OpenAPIRegistry) => {
           },
         },
       },
-      400: badRequest(),
+      // Field rules live on the body schema; this lists what the client sees when they fail
+      400: {
+        ...badRequest(),
+        description:
+          'Invalid body. Checked before any 403, 404 or 409. A value of only spaces counts as absent, and ' +
+          'length is the JavaScript string length, so some emoji count as 2. At most one message per field ' +
+          'in `errors`: "Reason is required", "Reason must be at most 500 characters", ' +
+          '"Reason is only allowed when status is rejected", "Comment is only allowed when status is approved", ' +
+          '"Comment must be at most 500 characters", "Reason is invalid", "Comment is invalid".',
+      },
       401: unauthorized(),
       404: notFound(),
-      409: conflict(),
+      409: {
+        ...conflict(),
+        description:
+          'The invoice is already approved or rejected, or another request changed its status or deleted it ' +
+          'after it was read.',
+      },
     },
   })
 

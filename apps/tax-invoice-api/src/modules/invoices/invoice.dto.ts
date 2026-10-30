@@ -27,9 +27,88 @@ export const InvoiceInputSchema = z.object({
 export const CreateInvoiceSchema = InvoiceInputSchema
 export const UpdateInvoiceSchema = InvoiceInputSchema.partial()
 
-export const UpdateInvoiceStatusSchema = z.object({
-  status: z.enum(InvoiceStatus),
-})
+// Reason and comment share the same length limit (KAN-5)
+const STATUS_NOTE_MAX_LENGTH = 500
+
+// Checked after trimming. Each field gets at most one message, because `parseRequest`
+// keeps only the last issue per field. A value of only spaces counts as absent.
+const checkStatusNote = (
+  data: { status: InvoiceStatus; reason?: string; comment?: string },
+  ctx: z.RefinementCtx,
+): void => {
+  const { status, reason, comment } = data
+
+  if (status === InvoiceStatus.REJECTED) {
+    if (!reason) {
+      ctx.addIssue({
+        code: 'custom',
+        message: ERROR_MESSAGE.IS_REQUIRED('Reason'),
+        path: ['reason'],
+      })
+    } else if (reason.length > STATUS_NOTE_MAX_LENGTH) {
+      ctx.addIssue({
+        code: 'custom',
+        message: ERROR_MESSAGE.MUST_BE_AT_MOST(
+          'Reason',
+          STATUS_NOTE_MAX_LENGTH,
+        ),
+        path: ['reason'],
+      })
+    }
+  } else if (reason) {
+    ctx.addIssue({
+      code: 'custom',
+      message: ERROR_MESSAGE.ONLY_ALLOWED_WHEN_STATUS(
+        'Reason',
+        InvoiceStatus.REJECTED,
+      ),
+      path: ['reason'],
+    })
+  }
+
+  if (status !== InvoiceStatus.APPROVED) {
+    if (comment) {
+      ctx.addIssue({
+        code: 'custom',
+        message: ERROR_MESSAGE.ONLY_ALLOWED_WHEN_STATUS(
+          'Comment',
+          InvoiceStatus.APPROVED,
+        ),
+        path: ['comment'],
+      })
+    }
+  } else if (comment && comment.length > STATUS_NOTE_MAX_LENGTH) {
+    ctx.addIssue({
+      code: 'custom',
+      message: ERROR_MESSAGE.MUST_BE_AT_MOST('Comment', STATUS_NOTE_MAX_LENGTH),
+      path: ['comment'],
+    })
+  }
+}
+
+export const UpdateInvoiceStatusSchema = z
+  .object({
+    status: z.enum(InvoiceStatus),
+    reason: z
+      .string(ERROR_MESSAGE.IS_INVALID('Reason'))
+      .trim()
+      .optional()
+      .openapi({
+        description:
+          'Required when status is rejected, and allowed only then. Trimmed; 1–500 characters.',
+        example: 'Tax should be 10% of the amount, not 8%.',
+      }),
+    comment: z
+      .string(ERROR_MESSAGE.IS_INVALID('Comment'))
+      .trim()
+      .optional()
+      .openapi({
+        description:
+          'Optional, and allowed only when status is approved. Trimmed; at most 500 characters.',
+        example: 'Matches PO-2291.',
+      }),
+  })
+  .superRefine(checkStatusNote)
 
 export const InvoiceParamsSchema = z.object({
   invoiceNumber: z.string().min(1),
@@ -57,6 +136,9 @@ export const InvoiceHistorySchema = z.object({
   eventType: z.enum(InvoiceEventType).nullable(),
   // null for legacy entries, which never recorded who acted
   actor: z.string().nullable(),
+  // Present only on rejected events (reason) and approved events with a comment
+  reason: z.string().optional(),
+  comment: z.string().optional(),
   changes: z.record(z.string(), z.unknown()),
   legacy: z.literal(true).optional(),
   createdAt: z.string().optional(), // Changed to string for API JSON consistency
