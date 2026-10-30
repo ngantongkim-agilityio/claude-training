@@ -1,10 +1,29 @@
 {
   "permissions": {
-    "allow": [],
+    "allow": [
+      "Bash(gh pr view *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
+      "Bash(pnpm --version)",
+      "Bash(pnpm list *)",
+      "Bash(pnpm why *)"
+    ],
     "deny": [
       "Bash(git push *main*)",
       "Bash(git push --force*)",
-      "Bash(git push -f*)"
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean*)",
+      "Bash(git branch -D*)",
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Read(**/*.pem)",
+      "Edit(**/*.pem)",
+      "Read(**/id_rsa*)",
+      "Edit(**/id_rsa*)"
     ],
     "defaultMode": "default"
   },
@@ -12,6 +31,15 @@
     "PreToolUse": [
       {
         "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-forbidden-command.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Grep",
         "hooks": [
           {
             "type": "command",
