@@ -20,7 +20,7 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `.claude/skills/` — project skills for the Jira ticket workflow: `create-ticket` → `analyze-ticket` → `plan-ticket` → `implement-ticket` → `ship-ticket` (one ticket, `KAN-<n>`), plus `create-pr` (GitHub PR from the template).
 - `.github/ISSUE_TEMPLATE/` — GitHub issue forms (`bug`, `feature`, `chore`), kept as they are; tasks are not tracked in GitHub Issues.
 - `.github/pull_request_template.md` — GitHub PR description template (Summary, Changes, Testing, Risks, Checklist).
-- `.github/workflows/` — Claude PR assistant (`claude.yml`), automated PR review (`claude-code-review.yml`), and CI quality gate (`ci.yml`: `pnpm check` on pushes/PRs to `main`).
+- `.github/workflows/` — Claude PR assistant (`claude.yml`: `@claude` in issue/PR comments, collaborators only, answer-only, `claude-review` environment) and CI quality gate (`ci.yml`: tracked-secret check and `pnpm check` on pushes/PRs to `main`).
 
 Tasks are tracked as Jira tickets in project KAN on `claude-training-dev.atlassian.net`, the source of truth for requirements, acceptance criteria, dependencies and status; read and write it through the Atlassian MCP. `docs/tickets/` holds a short summary of each ticket. `origin` is GitHub, the primary remote for code, PRs and CI; `gitlab` is a mirror that is never pushed to for feature work.
 
