@@ -9,5 +9,10 @@ coverage/
 .omc/
 .playwright-mcp/
 
-# Env (never commit real values; samples only)
+# Env and keys (never commit real values; templates only)
 .env
+.env.*
+!.env.sample
+!.env.example
+*.pem
+id_rsa*

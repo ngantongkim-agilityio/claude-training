@@ -38,6 +38,9 @@ function fail(message) {
 }
 
 function main() {
+  // Do nothing in GitHub Actions: CI runs never format files.
+  if (process.env.GITHUB_ACTIONS === "true") return;
+
   let filePath = "";
   try {
     const input = JSON.parse(fs.readFileSync(0, "utf8"));

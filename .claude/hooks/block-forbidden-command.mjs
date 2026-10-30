@@ -1,17 +1,31 @@
 #!/usr/bin/env node
-// Claude Code PreToolUse hook: blocks forbidden Bash commands before execution.
-// Reads JSON from stdin: { tool_input: { command } }
+// Claude Code PreToolUse hook: blocks forbidden tool calls before execution.
+// Reads JSON from stdin: { tool_name, tool_input, cwd }
 // Exit 2 + stderr message = block, exit 0 = allow.
-// Rules enforce this repository's policies: never push to main, never
-// force-push (see .claude/rules/git-conventions.md).
+// Rules enforce this repository's policies (see
+// .claude/rules/git-conventions.md): never push to main, never force-push,
+// push only to the GitHub origin, never stage, commit, read or edit a secret
+// file (rule in ./secret-paths.mjs). Git commands it cannot parse or inspect
+// are blocked.
 // No dependencies beyond Node.js builtins.
 
 import path from "node:path";
 import fs from "node:fs";
-import { spawnSync, execFileSync } from "node:child_process";
+import os from "node:os";
+import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
+import {
+  isSecretPath,
+  namesSecret,
+  globToRegExp,
+  findSecretsUnder,
+} from "./secret-paths.mjs";
+
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+
+// The only push destination: the GitHub origin (see CLAUDE.md, Remotes).
+const ALLOWED_REPO = "ngantongkim-agilityio/claude-training";
 
 // ---------------------------------------------------------------------------
 // 1. Command parsing: shell-aware splitting and tokenizing (not regex alone).
@@ -292,14 +306,18 @@ const VALUE_OPTIONS = new Set([
 // Strip VAR=x assignments and prefix wrapper commands (sudo, env, timeout,
 // ...) including their flags, to reach the real command. `eval ...` joins its
 // arguments into a new command for recursive checking.
-// Returns { argv } to check, or { nested } for recursive checking.
+// Returns { argv, assignments } to check, or { nested } for recursive
+// checking. `assignments` are the VAR=x tokens (prefixes or a bare
+// assignment such as `f=.env`).
 function unwrap(argv) {
   let rest = argv;
+  const assignments = [];
   for (;;) {
-    if (rest.length === 0) return { argv: [] };
+    if (rest.length === 0) return { argv: [], assignments };
     const [head, ...tail] = rest;
     if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(head)) {
-      rest = tail; // VAR=x environment prefix
+      assignments.push(head); // VAR=x environment prefix or assignment
+      rest = tail;
       continue;
     }
     const base = path.basename(head);
@@ -318,9 +336,9 @@ function unwrap(argv) {
       if (cIndex !== -1 && cIndex + 1 < tail.length) {
         return { nested: tail[cIndex + 1] }; // sh -c '...' runs this command
       }
-      return { argv: [] }; // sh script.sh — not inspectable, allow
+      return { argv: [], assignments }; // sh script.sh — not inspectable, allow
     }
-    return { argv: rest };
+    return { argv: rest, assignments };
   }
 }
 
@@ -366,48 +384,156 @@ function targetsMain(refspec, branch) {
   return dst === "main" || dst === "refs/heads/main";
 }
 
-function currentBranch() {
-  try {
-    const out = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-      cwd: PROJECT_DIR,
-      encoding: "utf8",
-      timeout: 10000,
-    }).trim();
-    if (out === "" || out === "HEAD") return null;
-    return out;
-  } catch {
-    return null; // Not a repo or git unavailable — allow, do not false-block.
+// Run git the way the checked command would (same directory and
+// --git-dir / --work-tree). Returns { ok, stdout }; ok is false on any failure.
+function runGit(git, args) {
+  const result = spawnSync("git", [...git.repoArgs, ...args], {
+    cwd: git.cwd,
+    encoding: "utf8",
+    timeout: 10000,
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) {
+    const detail = (result.stderr || result.error?.message || "").trim();
+    return { ok: false, stdout: result.stdout || "", detail };
   }
+  return { ok: true, stdout: result.stdout };
 }
 
-// Check one unwrapped argv. Returns a block reason or null (allow).
-// `branch` is the current branch name, or null when unknown.
-export function checkArgv(argv, branch) {
-  if (argv.length === 0) return null;
-  if (path.basename(argv[0]) !== "git") return null;
+function gitConfig(git, key) {
+  const result = runGit(git, ["config", "--get", key]);
+  return result.ok ? result.stdout.trim() : "";
+}
 
-  // Skip git global options to find the subcommand: every dash-token here
-  // is an option (never the subcommand). Value-taking globals consume theirs.
+function currentBranch(git) {
+  const result = runGit(git, ["rev-parse", "--abbrev-ref", "HEAD"]);
+  if (!result.ok) return null; // Not a repo or git unavailable.
+  const out = result.stdout.trim();
+  if (out === "" || out === "HEAD") return null;
+  return out;
+}
+
+// Skip git global options to find the subcommand: every dash-token here is
+// an option (never the subcommand). Value-taking globals consume theirs.
+// Tracks `-C` (working directory), --git-dir / --work-tree (repository) and
+// `-c` / `--config-env` overrides.
+function parseGit(argv, cwd) {
+  let dir = cwd;
+  const configs = [];
+  const repoArgs = [];
   let i = 1;
   for (; i < argv.length; i += 1) {
     const t = argv[i];
     if (!t.startsWith("-") || t === "-") break; // subcommand found
-    if (t === "-C" || t === "--git-dir" || t === "--work-tree" || t === "-c") {
+    if (t === "-C") {
+      dir = path.resolve(dir, argv[i + 1] ?? "");
+      i += 1;
+      continue;
+    }
+    if (t === "-c") {
+      configs.push(argv[i + 1] ?? "");
+      i += 1;
+      continue;
+    }
+    if (t === "--git-dir" || t === "--work-tree") {
+      repoArgs.push(`${t}=${path.resolve(dir, argv[i + 1] ?? "")}`);
+      i += 1;
+      continue;
+    }
+    if (t.startsWith("--git-dir=") || t.startsWith("--work-tree=")) {
+      const eq = t.indexOf("=");
+      repoArgs.push(`${t.slice(0, eq)}=${path.resolve(dir, t.slice(eq + 1))}`);
+      continue;
+    }
+    if (t.startsWith("-C")) {
+      dir = path.resolve(dir, t.slice(2)); // attached value
+      continue;
+    }
+    if (t === "--config-env") {
+      configs.push(`--config-env=${argv[i + 1] ?? ""}`);
+      i += 1;
+      continue;
+    }
+    if (t.startsWith("--config-env=")) configs.push(t);
+    if (t === "--namespace" || t === "--super-prefix") {
       i += 1; // consume the option's value
       continue;
     }
-    if (t.startsWith("-C") || t.includes("=")) continue; // attached value
-    // Other globals (--no-pager, --bare, ...) take no value.
+    // Other globals (--no-pager, --bare, ...) need no tracking.
   }
-  if (i >= argv.length || argv[i] !== "push") return null;
-  i += 1;
+  return {
+    sub: argv[i],
+    args: argv.slice(i + 1),
+    cwd: dir,
+    configs,
+    repoArgs,
+  };
+}
 
+// Is this push URL the GitHub origin, in SSH or HTTPS form?
+export function isAllowedPushUrl(url) {
+  const match =
+    /^(?:git@github\.com:|ssh:\/\/git@github\.com(?::22)?\/|https:\/\/(?:[^@/\s]+@)?github\.com\/)(\S+?)(?:\.git)?\/?$/i.exec(
+      url.trim(),
+    );
+  return match !== null && match[1].toLowerCase() === ALLOWED_REPO;
+}
+
+// The remote a push without a repository argument uses.
+function defaultPushRemote(git, branch) {
+  if (branch) {
+    const pushRemote = gitConfig(git, `branch.${branch}.pushRemote`);
+    if (pushRemote) return pushRemote;
+  }
+  const pushDefault = gitConfig(git, "remote.pushDefault");
+  if (pushDefault) return pushDefault;
+  if (branch) {
+    const remote = gitConfig(git, `branch.${branch}.remote`);
+    if (remote) return remote;
+  }
+  return "origin";
+}
+
+// Every push URL of `remote` (a name or a literal URL/path) must be the
+// GitHub origin.
+function checkRemote(git, remote) {
+  const literal =
+    remote.includes("://") ||
+    /^[^/\s]+@[^:/\s]+:/.test(remote) ||
+    remote.startsWith("/") ||
+    remote.startsWith(".");
+  let urls = [remote];
+  if (!literal) {
+    const result = runGit(git, [
+      "remote",
+      "get-url",
+      "--push",
+      "--all",
+      remote,
+    ]);
+    if (!result.ok) {
+      return `Blocked: cannot resolve push remote "${remote}"; pushes go only to the GitHub origin.`;
+    }
+    urls = result.stdout
+      .split("\n")
+      .map((u) => u.trim())
+      .filter(Boolean);
+  }
+  const bad = urls.find((u) => !isAllowedPushUrl(u));
+  if (urls.length === 0 || bad !== undefined) {
+    return `Blocked: pushes go only to the GitHub origin (${ALLOWED_REPO}); "${remote}" points to ${bad ?? "nothing"}.`;
+  }
+  return null;
+}
+
+function checkPush(git, branchArg) {
+  const argv = git.args;
   let deleteMode = false;
   let seenMirror = false;
-  let seenAll = false;
   let dryRun = false;
+  let repoOption = null;
   const positionals = [];
-  for (; i < argv.length; i += 1) {
+  for (let i = 0; i < argv.length; i += 1) {
     const t = argv[i];
     if (t === "--") {
       positionals.push(...argv.slice(i + 1));
@@ -428,6 +554,15 @@ export function checkArgv(argv, branch) {
     }
     if (t === "--dry-run" || t === "-n") {
       dryRun = true; // dry-run changes nothing on the remote
+      continue;
+    }
+    if (t === "--repo") {
+      repoOption = argv[i + 1] ?? "";
+      i += 1;
+      continue;
+    }
+    if (t.startsWith("--repo=")) {
+      repoOption = t.slice("--repo=".length);
       continue;
     }
     if (VALUE_OPTIONS.has(t)) {
@@ -452,6 +587,8 @@ export function checkArgv(argv, branch) {
     return "Blocked: mirror pushes rewrite remote refs and are not allowed.";
   }
 
+  const branch = branchArg === undefined ? currentBranch(git) : branchArg;
+
   // positionals[0] is the remote (or the only refspec); the rest are refspecs.
   const refspecs = positionals.length > 1 ? positionals.slice(1) : positionals;
   const targets = refspecs.filter((r) => targetsMain(r, branch));
@@ -471,6 +608,305 @@ export function checkArgv(argv, branch) {
     return "Blocked: pushing the main branch is not allowed (use a feature branch and a pull request).";
   }
 
+  // The destination must be the GitHub origin; URL overrides could redirect
+  // a push to `origin` anywhere.
+  if (git.configs.some((c) => /url|sshcommand/i.test(c))) {
+    return "Blocked: pushes may not override remote URLs or the ssh command (git -c or --config-env).";
+  }
+  const remote = positionals[0] ?? repoOption ?? defaultPushRemote(git, branch);
+  return checkRemote(git, remote);
+}
+
+// Block reason when git cannot say what a command would stage or commit.
+function uninspectable(detail) {
+  const why = detail ? ` (git: ${detail.split("\n")[0]})` : "";
+  return `Blocked: cannot inspect which files this would stage or commit${why}.`;
+}
+
+// Pathspecs listed by --pathspec-from-file (newline- or NUL-separated).
+// Returns { specs } or { reason } when the list cannot be read.
+function readPathspecFile(cwd, file, nul) {
+  if (file === "-" || file === "") {
+    return {
+      reason:
+        "Blocked: pathspecs from stdin cannot be inspected; list them in a file or on the command line.",
+    };
+  }
+  let text;
+  try {
+    text = fs.readFileSync(path.resolve(cwd, file), "utf8");
+  } catch {
+    return { reason: `Blocked: cannot read pathspec file ${file}.` };
+  }
+  return { specs: text.split(nul ? "\0" : /\r?\n/).filter((s) => s !== "") };
+}
+
+function secretReason(p) {
+  return `Blocked: ${p} is a secret file and must never be staged or committed.`;
+}
+
+// `git add`: block secret pathspecs, then ask git (dry run) what the same
+// command would stage — this covers `.`, -A, -u, directories, globs and -f.
+function checkAdd(git) {
+  const flags = [];
+  const specs = [];
+  let fromFile = null;
+  let nul = false;
+  const args = git.args;
+  for (let i = 0; i < args.length; i += 1) {
+    const t = args[i];
+    if (t === "--") {
+      specs.push(...args.slice(i + 1));
+      break;
+    }
+    if (t === "--pathspec-from-file") {
+      fromFile = args[i + 1] ?? "";
+      i += 1;
+      continue;
+    }
+    if (t.startsWith("--pathspec-from-file=")) {
+      fromFile = t.slice("--pathspec-from-file=".length);
+      continue;
+    }
+    if (t === "--pathspec-file-nul") {
+      nul = true;
+      continue;
+    }
+    if (t === "--dry-run" || (/^-[^-]/.test(t) && t.includes("n"))) {
+      return null; // a dry run stages nothing
+    }
+    if (t.startsWith("-") && t !== "-") flags.push(t);
+    else specs.push(t);
+  }
+  if (fromFile !== null) {
+    const listed = readPathspecFile(git.cwd, fromFile, nul);
+    if (listed.reason) return listed.reason;
+    specs.push(...listed.specs);
+  }
+  const named = specs.find((s) => namesSecret(s));
+  if (named !== undefined) return secretReason(named);
+
+  const result = runGit(git, ["add", "--dry-run", ...flags, "--", ...specs]);
+  if (!result.ok) return uninspectable(result.detail);
+  const staged = result.stdout
+    .split("\n")
+    .map((line) => /^add '(.*)'$/.exec(line))
+    .filter(Boolean)
+    .map((m) => m[1]);
+  const secret = staged.find((p) => isSecretPath(p));
+  return secret === undefined ? null : secretReason(secret);
+}
+
+// `git diff --name-status -z` output as [{ status, paths }], or { error }.
+function diffEntries(git, args) {
+  const result = runGit(git, ["diff", "--name-status", "-M", "-z", ...args]);
+  if (!result.ok) return { error: result.detail };
+  const parts = result.stdout.split("\0");
+  const entries = [];
+  for (let i = 0; i < parts.length && parts[i] !== "";) {
+    const status = parts[i][0];
+    const count = status === "R" || status === "C" ? 2 : 1;
+    entries.push({ status, paths: parts.slice(i + 1, i + 1 + count) });
+    i += 1 + count;
+  }
+  return entries;
+}
+
+// `git commit` options taking a value, so it is never read as a pathspec.
+const COMMIT_VALUE_SHORT = new Set(["m", "F", "c", "C", "t"]);
+const COMMIT_VALUE_LONG = new Set([
+  "--message",
+  "--file",
+  "--reuse-message",
+  "--reedit-message",
+  "--template",
+  "--author",
+  "--date",
+  "--cleanup",
+  "--fixup",
+  "--squash",
+  "--trailer",
+]);
+
+// `git commit`: block when the commit would add, modify or rename a secret
+// (either side of a rename). Deleting a tracked secret is allowed.
+function checkCommit(git) {
+  const specs = [];
+  let fromFile = null;
+  let nul = false;
+  let widened = false; // -a, -i, -o or pathspecs also commit worktree changes
+  const args = git.args;
+  for (let i = 0; i < args.length; i += 1) {
+    const t = args[i];
+    if (t === "--") {
+      specs.push(...args.slice(i + 1));
+      break;
+    }
+    if (t === "--dry-run") return null; // a dry run commits nothing
+    if (t === "--pathspec-from-file") {
+      fromFile = args[i + 1] ?? "";
+      i += 1;
+      continue;
+    }
+    if (t.startsWith("--pathspec-from-file=")) {
+      fromFile = t.slice("--pathspec-from-file=".length);
+      continue;
+    }
+    if (t === "--pathspec-file-nul") {
+      nul = true;
+      continue;
+    }
+    if (t === "--all" || t === "--include" || t === "--only") {
+      widened = true;
+      continue;
+    }
+    if (COMMIT_VALUE_LONG.has(t)) {
+      i += 1; // consume option value
+      continue;
+    }
+    if (t.startsWith("--")) continue; // other long flags, --opt=value
+    if (t.startsWith("-") && t.length > 1) {
+      // Short-flag bundle such as -am: a value flag takes the rest of the
+      // token, or the next token when it ends the bundle.
+      for (let j = 1; j < t.length; j += 1) {
+        const ch = t[j];
+        if (COMMIT_VALUE_SHORT.has(ch)) {
+          if (j === t.length - 1) i += 1;
+          break;
+        }
+        if (ch === "u" || ch === "S") break; // optional attached value
+        if (ch === "a" || ch === "i" || ch === "o") widened = true;
+      }
+      continue;
+    }
+    specs.push(t);
+  }
+  if (fromFile !== null) {
+    const listed = readPathspecFile(git.cwd, fromFile, nul);
+    if (listed.reason) return listed.reason;
+    specs.push(...listed.specs);
+  }
+  const named = specs.find((s) => namesSecret(s));
+  if (named !== undefined) return secretReason(named);
+
+  const entries = diffEntries(git, ["--cached"]);
+  if (entries.error !== undefined) return uninspectable(entries.error);
+  if (widened || specs.length > 0) {
+    const worktree = diffEntries(git, ["HEAD", "--", ...specs]);
+    if (worktree.error !== undefined) return uninspectable(worktree.error);
+    entries.push(...worktree);
+  }
+  for (const { status, paths } of entries) {
+    if (status === "D") continue; // removing a tracked secret is allowed
+    const secret = paths.find((p) => isSecretPath(p));
+    if (secret === undefined) continue;
+    if (status === "R") {
+      return `Blocked: renaming ${paths[0]} to ${paths[1]} would commit secret content.`;
+    }
+    return secretReason(secret);
+  }
+  return null;
+}
+
+// Git subcommands that may name a secret without reading or staging it.
+const NAME_EXEMPT_GIT = new Set(["rm", "check-ignore"]);
+
+// Environment overrides that point git at another repository, index, config
+// or ssh transport than the one this hook inspects.
+const GIT_LOCATION_ENV =
+  /^GIT_(?:DIR|WORK_TREE|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|NAMESPACE|CONFIG|SSH)/;
+
+// Shell builtins that set (and may export) variables for later commands.
+const SHELL_DECLARE = new Set(["export", "declare", "typeset", "readonly"]);
+const CHECKED_GIT = new Set(["push", "add", "commit"]);
+const MAX_ALIAS_DEPTH = 5;
+
+// Commands that run another command given as their arguments.
+const RUNNERS = new Set(["xargs", "find", "watch", "parallel"]);
+
+// Expand a git alias (`git p` with alias.p=push) and check the expansion.
+// Returns a block reason, null (allow), or undefined when `sub` is no alias.
+function checkAlias(argv, git, branch, ctx) {
+  const expansion = gitConfig(git, `alias.${git.sub}`);
+  if (expansion === "") return undefined;
+  if (expansion.startsWith("!")) {
+    // A shell alias receives the command's arguments too (`!git` + `push`).
+    return RISKY_GIT.test([expansion, ...git.args].join(" "))
+      ? `Blocked: git alias ${git.sub} runs git push/add/commit through a shell.`
+      : null;
+  }
+  const words = tokenize(expansion);
+  const depth = ctx.aliasDepth ?? 0;
+  if (words === null || depth >= MAX_ALIAS_DEPTH) {
+    return `Blocked: cannot expand git alias ${git.sub}.`;
+  }
+  const globals = argv.slice(1, argv.length - git.args.length - 1);
+  return checkArgv([argv[0], ...globals, ...words, ...git.args], branch, {
+    ...ctx,
+    aliasDepth: depth + 1,
+  });
+}
+
+// Check one unwrapped argv. Returns a block reason or null (allow).
+// `branch` is the current branch name, null when unknown, or undefined to
+// look it up. `ctx` carries { cwd, envNames }.
+export function checkArgv(argv, branch, ctx = {}) {
+  if (argv.length === 0) return null;
+  const isGit = path.basename(argv[0]) === "git";
+  const git = isGit ? parseGit(argv, ctx.cwd || PROJECT_DIR) : null;
+
+  // xargs, find -exec and similar runners supply git's arguments at run
+  // time, so the push/add/commit they run cannot be inspected.
+  if (!isGit) {
+    const gitAt = argv.findIndex((t, i) => i > 0 && path.basename(t) === "git");
+    const viaRunner =
+      RUNNERS.has(path.basename(argv[0])) &&
+      argv.slice(1).some((t) => RISKY_GIT.test(t));
+    if (
+      viaRunner ||
+      (gitAt !== -1 && argv.slice(gitAt + 1).some((t) => CHECKED_GIT.has(t)))
+    ) {
+      return `Blocked: git push/add/commit run through ${argv[0]} cannot be inspected; run git directly.`;
+    }
+  }
+
+  if (!(git && NAME_EXEMPT_GIT.has(git.sub))) {
+    const named = argv.find((t) => namesSecret(t));
+    if (named !== undefined) {
+      return `Blocked: the command names a secret file (${named}); secret files are never read, copied, moved or staged.`;
+    }
+  }
+  if (!git || git.sub === undefined) return null;
+  // A subcommand that is not a plain word means a global option's value was
+  // misread as the subcommand; fail closed if push/add/commit follows.
+  if (
+    !/^[A-Za-z0-9][\w.-]*$/.test(git.sub) &&
+    git.args.some((t) => CHECKED_GIT.has(t))
+  ) {
+    return "Blocked: cannot parse the git options before this push/add/commit.";
+  }
+  // Command-line config can define aliases (directly or via an include), so
+  // the subcommand git runs would differ from the one checked here.
+  if (
+    git.configs.some((c) =>
+      /^(?:alias|include|includeif)\./i.test(c.replace(/^--config-env=/, "")),
+    )
+  ) {
+    return "Blocked: git -c / --config-env alias or include settings are not allowed; the hook cannot inspect them.";
+  }
+  // Environment overrides can also define aliases or point git elsewhere,
+  // so they are checked before any alias lookup.
+  const override = (ctx.envNames ?? []).find((n) => GIT_LOCATION_ENV.test(n));
+  if (override !== undefined) {
+    return `Blocked: git ${git.sub} may not run with ${override} set; the hook cannot inspect it.`;
+  }
+  if (!CHECKED_GIT.has(git.sub)) {
+    const aliased = checkAlias(argv, git, branch, ctx);
+    return aliased === undefined ? null : aliased;
+  }
+  if (git.sub === "push") return checkPush(git, branch);
+  if (git.sub === "add") return checkAdd(git);
+  if (git.sub === "commit") return checkCommit(git);
   return null;
 }
 
@@ -478,39 +914,265 @@ export function checkArgv(argv, branch) {
 // 3. Blocking logic: check every segment and nested command; first hit wins.
 // ---------------------------------------------------------------------------
 
-export function checkCommand(command, branch) {
+const RISKY_GIT = /\bgit\b[\s\S]*\b(?:push|add|commit)\b/;
+const UNPARSEABLE =
+  "Blocked: cannot parse this git push/add/commit command safely (check its quotes).";
+
+// Git subcommands that leave the repository's config, refs, HEAD and
+// remotes as they were (add/rm/mv only change the index or files, which the
+// add and commit checks inspect).
+const READ_ONLY_GIT = new Set([
+  "status",
+  "log",
+  "diff",
+  "show",
+  "rev-parse",
+  "ls-files",
+  "check-ignore",
+  "fetch",
+  "grep",
+  "blame",
+  "shortlog",
+  "describe",
+  "cat-file",
+  "for-each-ref",
+  "show-ref",
+  "merge-base",
+  "add",
+  "rm",
+  "mv",
+]);
+const CONFIG_WRITES = new Set([
+  "--unset",
+  "--unset-all",
+  "--add",
+  "--replace-all",
+  "--rename-section",
+  "--remove-section",
+  "-e",
+  "--edit",
+]);
+const CONFIG_READS = new Set([
+  "--get",
+  "--get-all",
+  "--get-regexp",
+  "--get-urlmatch",
+  "--list",
+  "-l",
+]);
+const BRANCH_LISTING = new Set([
+  "--show-current",
+  "-a",
+  "--all",
+  "-r",
+  "--remotes",
+  "-v",
+  "-vv",
+  "--list",
+  "-l",
+]);
+
+// Does this git command leave the state the guard inspects unchanged?
+function keepsGitState(git) {
+  if (READ_ONLY_GIT.has(git.sub)) return true;
+  if (git.sub === "config") {
+    if (git.args.some((t) => CONFIG_WRITES.has(t))) return false;
+    return (
+      git.args.some((t) => CONFIG_READS.has(t)) ||
+      git.args.filter((t) => !t.startsWith("-")).length === 1
+    );
+  }
+  if (git.sub === "remote") {
+    return (
+      git.args.length === 0 ||
+      ["-v", "--verbose", "get-url", "show"].includes(git.args[0])
+    );
+  }
+  if (git.sub === "branch") return git.args.every((t) => BRANCH_LISTING.has(t));
+  return false;
+}
+
+// Paths that hold git's own state (.git/config, ~/.gitconfig, ...).
+const GIT_STATE_PATH = /(?:^|[/=<>])\.git(?:\/|$)|gitconfig|\.config\/git\b/;
+
+// Directory after `cd` / `pushd`, or null when it cannot be resolved.
+function changedDir(cwd, args) {
+  const operands = args.filter((t) => t === "-" || !t.startsWith("-"));
+  const target = operands[0];
+  if (target === undefined) return os.homedir();
+  if (target === "-" || /[$`*?[{]/.test(target)) return null;
+  return path.resolve(cwd, target.replace(/^~(?=$|\/)/, os.homedir()));
+}
+
+export function checkCommand(command, branch, ctx = {}) {
   const parsed = splitCommands(command);
-  if (parsed === null) return null; // Unparseable — the shell would fail too.
+  if (parsed === null) return RISKY_GIT.test(command) ? UNPARSEABLE : null;
   const queue = [...parsed.segments, ...parsed.nested];
-  const resolvedBranch = branch === undefined ? currentBranch() : branch;
+  // Earlier segments run before later ones: follow `cd`, and fail closed
+  // once one changes git state the later checks would read.
+  let cwd = ctx.cwd || PROJECT_DIR;
+  let changed = null;
 
   while (queue.length > 0) {
     const item = queue.shift();
     const argv = tokenize(item);
-    if (argv === null) continue; // Unparseable segment — shell would fail too.
+    if (argv === null) {
+      if (RISKY_GIT.test(item)) return UNPARSEABLE;
+      continue; // Unparseable segment — the shell would fail too.
+    }
     const unwrapped = unwrap(argv);
-    if (unwrapped.nested) {
+    if (unwrapped.nested !== undefined) {
       const inner = splitCommands(unwrapped.nested);
-      if (inner !== null) queue.push(...inner.segments, ...inner.nested);
+      if (inner === null) {
+        if (RISKY_GIT.test(unwrapped.nested)) return UNPARSEABLE;
+        continue;
+      }
+      queue.push(...inner.segments, ...inner.nested);
       continue;
     }
-    const reason = checkArgv(unwrapped.argv, resolvedBranch);
+    // `export GIT_DIR=...;` or a bare `GIT_DIR=...;` changes what later
+    // git commands in the same line operate on.
+    const declared = SHELL_DECLARE.has(unwrapped.argv[0])
+      ? unwrapped.argv.slice(1)
+      : unwrapped.argv.length === 0
+        ? unwrapped.assignments
+        : [];
+    const gitVar = declared
+      .map((a) => a.split("=")[0])
+      .find((n) => GIT_LOCATION_ENV.test(n));
+    if (gitVar !== undefined) {
+      return `Blocked: setting ${gitVar} redirects later git commands; the hook cannot inspect them.`;
+    }
+    const assigned = unwrapped.assignments.find((a) => namesSecret(a));
+    if (assigned !== undefined) {
+      return `Blocked: the command names a secret file (${assigned}); secret files are never read, copied, moved or staged.`;
+    }
+    const head = path.basename(unwrapped.argv[0] ?? "");
+    if (head === "git") {
+      const git = parseGit(unwrapped.argv, cwd);
+      if (
+        changed !== null &&
+        (CHECKED_GIT.has(git.sub) || !keepsGitState(git))
+      ) {
+        return `Blocked: ${changed} earlier in this command changes what git ${git.sub} would act on; run them as separate commands.`;
+      }
+      if (!CHECKED_GIT.has(git.sub) && !keepsGitState(git)) {
+        changed = `git ${git.sub}`;
+      }
+    } else if (head === "cd" || head === "pushd") {
+      const dir = changedDir(cwd, unwrapped.argv.slice(1));
+      if (dir === null) changed ??= `${head} to an unresolved directory`;
+      else cwd = dir;
+    } else if (head === "popd") {
+      changed ??= "popd";
+    } else if (unwrapped.argv.some((t) => GIT_STATE_PATH.test(t))) {
+      changed ??= "a command touching git's own files";
+    }
+    const reason = checkArgv(unwrapped.argv, branch, {
+      ...ctx,
+      cwd,
+      envNames: unwrapped.assignments.map((a) => a.slice(0, a.indexOf("="))),
+    });
     if (reason !== null) return reason;
   }
   return null;
 }
 
-function main() {
-  let command = "";
+// ---------------------------------------------------------------------------
+// 4. File tools: Read, Edit, Write, NotebookEdit and Grep.
+// ---------------------------------------------------------------------------
+
+const PATH_TOOLS = new Set(["Read", "Edit", "Write", "NotebookEdit"]);
+const PATH_KEYS = ["file_path", "notebook_path", "path"];
+
+// Can a Grep glob be modelled exactly? Whitespace or a comma outside braces
+// may be split into several globs, so neither is trusted.
+function grepGlobRegExp(glob) {
+  if (/\s/.test(glob) || glob.replace(/\{[^}]*\}/g, "").includes(",")) {
+    return null;
+  }
+  return globToRegExp(glob);
+}
+
+// Grep reads every file under a directory, so a directory search is blocked
+// when it contains a secret file its glob does not provably exclude.
+function checkGrep(input, cwd) {
+  const target =
+    typeof input.path === "string" && input.path !== "" ? input.path : ".";
+  if (isSecretPath(target)) {
+    return `Blocked: Grep on a secret file (${target}) is not allowed.`;
+  }
+  const glob =
+    typeof input.glob === "string" && input.glob !== "" ? input.glob : null;
+  if (glob !== null && namesSecret(glob)) {
+    return `Blocked: Grep glob ${glob} matches secret files.`;
+  }
+  const root = path.resolve(cwd, target);
+  let stat;
   try {
-    const input = JSON.parse(fs.readFileSync(0, "utf8"));
-    command = input?.tool_input?.command || "";
+    stat = fs.statSync(root);
+  } catch {
+    return null; // Nothing there — Grep finds nothing to read.
+  }
+  if (!stat.isDirectory()) return null;
+
+  const { secrets, complete } = findSecretsUnder(root);
+  if (!complete) {
+    return `Blocked: could not check every file under ${target} for secrets; narrow the Grep path.`;
+  }
+  // A glob without `/` matches file names; one with `/` matches the path
+  // ripgrep prints, which may be relative to the cwd or absolute, so every
+  // form of the secret's path is tried.
+  const re = glob === null ? null : grepGlobRegExp(glob);
+  const base = path.relative(cwd, root).split(path.sep).join("/");
+  const reachable = secrets.filter((rel) => {
+    if (re === null) return true;
+    if (!glob.includes("/")) return re.test(path.posix.basename(rel));
+    return [rel, path.posix.join(base, rel), path.join(root, rel)].some((p) =>
+      re.test(p),
+    );
+  });
+  if (reachable.length === 0) return null;
+  return `Blocked: Grep under ${target} would read secret files (${reachable
+    .slice(0, 3)
+    .join(", ")}); narrow the path or add a glob such as "*.ts".`;
+}
+
+export function checkFileTool(toolName, input, cwd) {
+  if (PATH_TOOLS.has(toolName)) {
+    for (const key of PATH_KEYS) {
+      if (isSecretPath(input?.[key])) {
+        return `Blocked: ${toolName} on a secret file (${input[key]}) is not allowed; use the .env.sample or .env.example template.`;
+      }
+    }
+    return null;
+  }
+  if (toolName === "Grep") return checkGrep(input ?? {}, cwd);
+  return null;
+}
+
+function main() {
+  let input;
+  try {
+    input = JSON.parse(fs.readFileSync(0, "utf8"));
   } catch {
     return 0; // Not hook JSON — allow.
   }
-  if (typeof command !== "string" || command.trim() === "") return 0;
+  const toolName = input?.tool_name;
+  const toolInput = input?.tool_input ?? {};
+  const cwd =
+    typeof input?.cwd === "string" && input.cwd !== ""
+      ? input.cwd
+      : PROJECT_DIR;
 
-  const reason = checkCommand(command);
+  let reason = null;
+  if (toolName === undefined || toolName === "Bash") {
+    const command = toolInput.command;
+    if (typeof command !== "string" || command.trim() === "") return 0;
+    reason = checkCommand(command, undefined, { cwd });
+  } else {
+    reason = checkFileTool(toolName, toolInput, cwd);
+  }
   if (reason !== null) {
     process.stderr.write(`${reason}\n`);
     return 2; // Block.
