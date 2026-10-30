@@ -26,6 +26,8 @@ export type InvoiceFieldChange = {
 export type InvoiceHistory = {
   eventType?: InvoiceEventType | null
   actor?: string
+  reason?: string
+  comment?: string
   changes?: Record<string, InvoiceFieldChange> | null
   createdAt?: Date
 }
@@ -34,6 +36,8 @@ export type InvoiceHistory = {
 export type InvoiceHistoryEntry = {
   eventType: InvoiceEventType | null
   actor: string | null
+  reason?: string
+  comment?: string
   changes: Record<string, InvoiceFieldChange>
   createdAt?: string
   legacy?: true

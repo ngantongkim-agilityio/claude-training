@@ -90,6 +90,9 @@ export const toInvoiceHistoryResponse = (
   return {
     eventType: history.eventType,
     actor: history.actor ?? null,
+    // Only decision events store these, so other entries get no such keys
+    ...(history.reason && { reason: history.reason }),
+    ...(history.comment && { comment: history.comment }),
     changes,
     createdAt,
   }

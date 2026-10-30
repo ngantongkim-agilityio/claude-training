@@ -156,6 +156,28 @@ export class InvoiceRepository implements BaseRepository<
   }
 
   /**
+   * Moves a live invoice from the status the caller read to a new one, appending its
+   * history event in the same update. Matching on `fromStatus` means that when two
+   * decisions race (e.g. approve and reject), only the first is applied; the other
+   * matches nothing and returns null.
+   */
+  async updateStatus(
+    invoiceNumber: string,
+    fromStatus: InvoiceStatus,
+    toStatus: InvoiceStatus,
+    event: InvoiceHistory,
+  ): Promise<InvoiceEntity | null> {
+    const invoice = await InvoiceModel.findOneAndUpdate(
+      { invoiceNumber, isDeleted: { $ne: true }, status: fromStatus },
+      { $set: { status: toStatus }, $push: { histories: event } },
+      { new: true },
+    ).lean()
+
+    if (!invoice) return null
+    return invoice as unknown as InvoiceEntity
+  }
+
+  /**
    * Flags an existing object instance as deleted without destroying the structural log.
    * An optional history event is appended in the same update, so the flag and its audit
    * entry are written together. Matching only live invoices keeps a concurrent second

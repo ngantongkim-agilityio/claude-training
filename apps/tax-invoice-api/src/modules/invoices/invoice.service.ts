@@ -17,7 +17,12 @@ import {
 } from '@/utils'
 
 // Types
-import { InvoiceEventType, InvoiceStatus, UserRole } from '@/types'
+import {
+  InvoiceEventType,
+  InvoiceHistory,
+  InvoiceStatus,
+  UserRole,
+} from '@/types'
 import type {
   InvoiceEntity,
   CreateInvoiceRequestDTO,
@@ -37,6 +42,13 @@ import type {
 import type { InvoiceRepository } from './invoice.repository'
 
 const logger = createModuleLogger('InvoiceService')
+
+// Event recorded for each status an allowed transition can reach (never draft)
+const STATUS_EVENT: Partial<Record<InvoiceStatus, InvoiceEventType>> = {
+  [InvoiceStatus.SUBMITTED]: InvoiceEventType.SUBMITTED,
+  [InvoiceStatus.APPROVED]: InvoiceEventType.APPROVED,
+  [InvoiceStatus.REJECTED]: InvoiceEventType.REJECTED,
+}
 
 export class InvoiceService extends BaseService<
   InvoiceEntity,
@@ -144,7 +156,7 @@ export class InvoiceService extends BaseService<
   async updateInvoiceStatus(
     payload: UpdateInvoiceStatusRequestDTO,
   ): Promise<UpdateInvoiceStatusResponseDTO> {
-    const { invoiceNumber, userEmail, role, status } = payload
+    const { invoiceNumber, userEmail, role, status, reason, comment } = payload
 
     const invoice = await this.invoiceRepository.findByNumberRaw(invoiceNumber)
 
@@ -196,8 +208,35 @@ export class InvoiceService extends BaseService<
       throw new ForbiddenError(ERROR_MESSAGE.INVALID_STATUS)
     }
 
-    invoice.status = status
-    await invoice.save()
+    // Every status change is recorded with who made it; an admin's decision also
+    // keeps why (a rejection reason, or an approval comment when one is given).
+    const event: InvoiceHistory = {
+      eventType: STATUS_EVENT[status],
+      actor: userEmail,
+      ...(status === InvoiceStatus.REJECTED && reason && { reason }),
+      ...(status === InvoiceStatus.APPROVED && comment && { comment }),
+      createdAt: new Date(),
+    }
+
+    const updated = await this.invoiceRepository.updateStatus(
+      invoiceNumber,
+      currentStatus,
+      status,
+      event,
+    )
+
+    // Another request changed the status after we read it, so this decision is stale
+    if (!updated) {
+      logger.warn(
+        'Update invoice status failed - status changed concurrently',
+        {
+          invoiceNumber,
+          expectedStatus: currentStatus,
+          newStatus: status,
+        },
+      )
+      throw new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE)
+    }
 
     logger.info('Update invoice status successful', {
       invoiceNumber,
@@ -208,8 +247,8 @@ export class InvoiceService extends BaseService<
     })
 
     return {
-      invoiceNumber: invoice.invoiceNumber,
-      status: invoice.status,
+      invoiceNumber: updated.invoiceNumber,
+      status: updated.status,
     }
   }
 

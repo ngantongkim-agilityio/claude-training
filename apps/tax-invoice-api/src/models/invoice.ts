@@ -17,6 +17,9 @@ const InvoiceHistorySchema = new Schema<InvoiceHistory>(
     },
     // Email snapshot at the time of the action, never joined to User
     actor: String,
+    // Rejected events always carry a reason; approved events carry a comment only if given
+    reason: String,
+    comment: String,
     changes: {
       type: SchemaTypes.Mixed,
     },

@@ -16,6 +16,8 @@ Make admins explain a rejection and let them add a comment to an approval, and r
 - A rejection needs a reason: trimmed, 1–500 characters. An approval comment is optional, up to 500 characters.
 - A value of only spaces counts as absent. `reason` goes only with `rejected`, `comment` only with `approved`.
 - Body validation (400) runs before the 404, 403 and 409 checks, with one message per field.
+- Per a Jira comment on KAN-5: `reason` and `comment` are stored on the history entry and returned in the list, detail
+  and history responses.
 - Out of scope: rejection categories, editing a reason, rejected → submitted and the version check (T3), reports and
   email.
 

@@ -109,6 +109,24 @@ GET /invoices?from=2026-01-01&to=2026-06-30
 GET /invoices?sortBy=updatedAt&order=asc
 ```
 
+#### PATCH /invoices/:id
+
+Request body:
+
+| Field     | Type   | Required        | Description                                                          |
+| --------- | ------ | --------------- | -------------------------------------------------------------------- |
+| `status`  | string | Yes             | `submitted` (owner, from `draft`) or `approved` / `rejected` (admin) |
+| `reason`  | string | With `rejected` | Why the invoice is rejected. Trimmed; 1–500 characters               |
+| `comment` | string | No              | Optional note on an approval. Trimmed; at most 500 characters        |
+
+```jsonc
+// Admin rejects (reason required)
+{ "status": "rejected", "reason": "Tax should be 10% of the amount, not 8%." }
+
+// Admin approves (comment optional)
+{ "status": "approved", "comment": "Matches PO-2291." }
+```
+
 ---
 
 ## 📜 Invoice Histories
@@ -124,12 +142,15 @@ no token: `401`. `GET /invoices` and `GET /invoices/:id` embed the same entries 
 | ----------- | -------------- | ---------------------------------------------------------------------------------- |
 | `eventType` | string \| null | `created`, `edited`, `submitted`, `resubmitted`, `approved`, `rejected`, `deleted` |
 | `actor`     | string \| null | Email of the user who acted, as it was at that time                                |
+| `reason`    | string         | Only on `rejected` events: the admin's reason                                      |
+| `comment`   | string         | Only on `approved` events that were given a comment                                |
 | `changes`   | object         | `{ field: { old, new } }`; `{}` when nothing changed                               |
 | `createdAt` | string         | Server timestamp (ISO 8601)                                                        |
 | `legacy`    | `true`         | Only on entries stored before audit tracking                                       |
 
 - `edited` is recorded only when `PUT` changes a value on a submitted invoice.
-- `submitted`, `approved`, `rejected` and `resubmitted` are reserved for later status-workflow changes.
+- `submitted` is recorded when the owner submits a draft; `approved` and `rejected` when an admin decides, by `PATCH`.
+- `resubmitted` is reserved for later status-workflow changes.
 - Legacy entries are normalized on read and never rewritten: `actor: null`, and `eventType` is `edited` if they hold
   changes, otherwise `null` with `changes: {}`.
 

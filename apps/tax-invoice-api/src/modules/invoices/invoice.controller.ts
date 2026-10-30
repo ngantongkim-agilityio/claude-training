@@ -101,7 +101,10 @@ export class InvoiceController extends BaseController {
    */
   updateInvoiceStatus = this.asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
-      const { status } = parseRequest(UpdateInvoiceStatusSchema, req.body)
+      const { status, reason, comment } = parseRequest(
+        UpdateInvoiceStatusSchema,
+        req.body,
+      )
 
       if (!status || !isInvoiceStatus(status)) {
         throw new ValidationError({}, ERROR_MESSAGE.INVALID_DATA)
@@ -112,6 +115,8 @@ export class InvoiceController extends BaseController {
       const result = await this.service.updateInvoiceStatus({
         invoiceNumber,
         status,
+        reason,
+        comment,
         userEmail: req.currentUser!.email,
         role: req.currentUser!.role,
       })

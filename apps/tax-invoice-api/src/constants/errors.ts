@@ -8,6 +8,10 @@ export const ERROR_MESSAGE = {
   ALREADY_REGISTERED: (name = 'field') => `${name} already registered`,
   MUST_BE_NUMBER: (name = 'field') => `${name} must be a number`,
   MUST_BE_NON_NEGATIVE: (name = 'field') => `${name} cannot be negative`,
+  MUST_BE_AT_MOST: (name: string, max: number) =>
+    `${name} must be at most ${max} characters`,
+  ONLY_ALLOWED_WHEN_STATUS: (name: string, status: string) =>
+    `${name} is only allowed when status is ${status}`,
   PASSWORD_IS_INVALID:
     'Password must contain at least 8 characters, including uppercase, lowercase, number, and special character',
   TOO_MANY_REQUESTS: 'Too many requests, please try again later',

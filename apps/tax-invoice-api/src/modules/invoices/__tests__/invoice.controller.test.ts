@@ -9,6 +9,9 @@ import { SUCCESS_MESSAGE } from '@/constants'
 // Types
 import { UserRole } from '@/types'
 
+// Utils
+import { isInvoiceStatus, parseRequest } from '@/utils'
+
 // Mock utils and helper behaviors safely
 jest.mock('@/utils', () => ({
   ...jest.requireActual('@/utils'),
@@ -190,6 +193,8 @@ describe('InvoiceController', () => {
       expect(invoiceService.updateInvoiceStatus).toHaveBeenCalledWith({
         invoiceNumber: 'INV-001',
         status: 'submitted',
+        reason: undefined,
+        comment: undefined,
         userEmail: mockUser.email,
         role: mockUser.role,
       })
@@ -211,6 +216,76 @@ describe('InvoiceController', () => {
       )
 
       expect(next).toHaveBeenCalledWith(expect.any(Error))
+    })
+
+    it('should pass the reason and comment to the service', async () => {
+      jest.mocked(isInvoiceStatus).mockReturnValueOnce(true)
+      req.body = { status: 'rejected', reason: 'Tax should be 10%' }
+      invoiceService.updateInvoiceStatus.mockResolvedValueOnce({
+        invoiceNumber: 'INV-001',
+        status: 'rejected',
+      })
+
+      await invoiceController.updateInvoiceStatus(
+        req as Request,
+        res as Response,
+        next,
+      )
+
+      expect(invoiceService.updateInvoiceStatus).toHaveBeenCalledWith({
+        invoiceNumber: 'INV-001',
+        status: 'rejected',
+        reason: 'Tax should be 10%',
+        comment: undefined,
+        userEmail: mockUser.email,
+        role: mockUser.role,
+      })
+    })
+
+    it('should pass the trimmed reason from the real schema to the service (TC-16)', async () => {
+      jest
+        .mocked(parseRequest)
+        .mockImplementationOnce(jest.requireActual('@/utils').parseRequest)
+      jest.mocked(isInvoiceStatus).mockReturnValueOnce(true)
+      req.body = { status: 'rejected', reason: '  Tax should be 10%  ' }
+      invoiceService.updateInvoiceStatus.mockResolvedValueOnce({
+        invoiceNumber: 'INV-001',
+        status: 'rejected',
+      })
+
+      await invoiceController.updateInvoiceStatus(
+        req as Request,
+        res as Response,
+        next,
+      )
+
+      expect(invoiceService.updateInvoiceStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'Tax should be 10%' }),
+      )
+    })
+
+    // Body validation runs before any permission, status or existence check (T2-DQ1)
+    it('should return 400 for a bad body from a non-admin without calling the service (TC-60)', async () => {
+      jest
+        .mocked(parseRequest)
+        .mockImplementationOnce(jest.requireActual('@/utils').parseRequest)
+      req.body = { status: 'approved', reason: 'Tax is wrong' }
+
+      await invoiceController.updateInvoiceStatus(
+        req as Request,
+        res as Response,
+        next,
+      )
+
+      expect(next).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusCode: 400,
+          errors: {
+            reason: 'Reason is only allowed when status is rejected',
+          },
+        }),
+      )
+      expect(invoiceService.updateInvoiceStatus).not.toHaveBeenCalled()
     })
   })
 
