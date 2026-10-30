@@ -7,12 +7,15 @@ on:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Push runs get a unique group so consecutive merges to main never cancel
+  # each other; PR runs share a per-PR group and cancel superseded runs.
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('push-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     env:
@@ -26,6 +29,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Check for tracked secret files
+        run: node .claude/hooks/secret-paths.mjs --check-tracked
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v6 # version from packageManager (pnpm@10.12.4)
