@@ -1,5 +1,34 @@
 export type InvoiceStatus = "draft" | "submitted" | "approved" | "rejected"
 
+export type InvoiceEventType =
+  | "created"
+  | "edited"
+  | "submitted"
+  | "resubmitted"
+  | "approved"
+  | "rejected"
+  | "deleted"
+
+export interface InvoiceFieldChange {
+  old?: unknown
+  new?: unknown
+}
+
+// One entry of the detail response's `histories`, which the API returns oldest first
+export interface InvoiceHistoryEntry {
+  // null only for legacy entries whose type can't be inferred
+  eventType: InvoiceEventType | null
+  // null for legacy entries, which never recorded who acted
+  actor: string | null
+  changes: Record<string, InvoiceFieldChange>
+  createdAt?: string
+  legacy?: true
+  // Present on rejected entries once the API records reasons (KAN-5)
+  reason?: string
+  // Present on approved entries when the admin left one (KAN-5)
+  comment?: string
+}
+
 export interface Invoice {
   invoiceNumber: string
   user: string
@@ -7,6 +36,7 @@ export interface Invoice {
   amount: number
   tax?: number
   description?: string
+  histories?: InvoiceHistoryEntry[]
   createdAt: string
   updatedAt: string
 }

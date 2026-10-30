@@ -2,6 +2,9 @@ export { invoiceService } from "./api"
 export type {
   Invoice,
   InvoiceStatus,
+  InvoiceEventType,
+  InvoiceFieldChange,
+  InvoiceHistoryEntry,
   GetInvoicesParams,
   GetInvoicesResponse,
   GetInvoiceResponse,
