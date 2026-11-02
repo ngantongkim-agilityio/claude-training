@@ -37,7 +37,11 @@ implementation begin only after the user approves the plan, in
    the step), test strategy (failing test first for bugs; tests ship in the
    same commit as code), and validation via the workspace gates in
    `CONTRIBUTING.md` (`pnpm check`, `pnpm --filter @repo/api check`). All
-   package commands use pnpm exclusively, per the app rules.
+   package commands use pnpm exclusively, per the app rules. The plan must
+   also map each TC to a test file and level (each AC when the ticket has no
+   TCs, or `manual` with its walkthrough when the ticket says so), say which
+   tests fail first, and state the risk tier from `REVIEW.md` (`high` or
+   `standard`).
 3. **Present and stop.** Show the plan, then end the turn with an explicit
    approval request. Do not implement, branch, commit, push, or open a PR
    in this skill under any reading of the approval — approval of the plan

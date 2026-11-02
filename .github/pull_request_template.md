@@ -26,6 +26,16 @@ Call out failures that already happen on `main`.
 
 -
 
+<!-- `Review: <tier> — /code-review, code-reviewer`. For the high tier, add `; ultra pending; dispositions in the PR comment`. -->
+
+Review:
+
+## Acceptance criteria
+
+<!-- One line per AC or TC with its result (pass, fail, manual), not a restatement of the ticket. -->
+
+-
+
 ## Risks and follow-ups
 
 <!-- Actionable risks or follow-ups only: behaviour changes, setup or migration notes, deferred work. Remove this section if there are none. -->
