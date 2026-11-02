@@ -33,10 +33,15 @@ const STATUS_NOTE_MAX_LENGTH = 500
 // Checked after trimming. Each field gets at most one message, because `parseRequest`
 // keeps only the last issue per field. A value of only spaces counts as absent.
 const checkStatusNote = (
-  data: { status: InvoiceStatus; reason?: string; comment?: string },
+  data: {
+    status: InvoiceStatus
+    reason?: string
+    comment?: string
+    expectedUpdatedAt?: string
+  },
   ctx: z.RefinementCtx,
 ): void => {
-  const { status, reason, comment } = data
+  const { status, reason, comment, expectedUpdatedAt } = data
 
   if (status === InvoiceStatus.REJECTED) {
     if (!reason) {
@@ -84,6 +89,26 @@ const checkStatusNote = (
       path: ['comment'],
     })
   }
+
+  // A decision must name the version the admin reviewed (KAN-6); other statuses never carry it
+  const isDecision =
+    status === InvoiceStatus.APPROVED || status === InvoiceStatus.REJECTED
+  if (isDecision && !expectedUpdatedAt) {
+    ctx.addIssue({
+      code: 'custom',
+      message: ERROR_MESSAGE.IS_REQUIRED('Expected updated at'),
+      path: ['expectedUpdatedAt'],
+    })
+  } else if (!isDecision && expectedUpdatedAt !== undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      message: ERROR_MESSAGE.ONLY_ALLOWED_WHEN_STATUS(
+        'Expected updated at',
+        'approved or rejected',
+      ),
+      path: ['expectedUpdatedAt'],
+    })
+  }
 }
 
 export const UpdateInvoiceStatusSchema = z
@@ -106,6 +131,19 @@ export const UpdateInvoiceStatusSchema = z
         description:
           'Optional, and allowed only when status is approved. Trimmed; at most 500 characters.',
         example: 'Matches PO-2291.',
+      }),
+    // Any ISO 8601 date-time is accepted, offset included; the service compares instants
+    expectedUpdatedAt: z.iso
+      .datetime({
+        offset: true,
+        error: ERROR_MESSAGE.IS_INVALID('Expected updated at'),
+      })
+      .optional()
+      .openapi({
+        description:
+          'Required when status is approved or rejected, and allowed only then. The `updatedAt` of the invoice version the admin reviewed; ' +
+          'if the invoice has changed since, the request fails with 409 INVOICE_CHANGED.',
+        example: '2026-11-02T10:00:00.000Z',
       }),
   })
   .superRefine(checkStatusNote)
@@ -203,6 +241,8 @@ export type InvoiceEntity = {
   histories: InvoiceHistory[]
   createdAt: Date
   updatedAt: Date
+  // Mongoose version counter; every write is guarded on it (see InvoiceRepository)
+  __v?: number
 }
 
 /**

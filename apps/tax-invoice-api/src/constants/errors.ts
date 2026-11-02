@@ -34,6 +34,8 @@ export const ERROR_MESSAGE = {
   CANNOT_UPDATE: 'Cannot update status of finalized invoice',
   INVALID_STATUS: 'You are not allowed to change invoice to this status',
   CANNOT_DELETE: 'Cannot delete this invoice',
+  INVOICE_CHANGED:
+    'This invoice has changed since you opened it. Reload it to review the latest version.',
 
   // Report
   INVALID_DATE_RANGE: 'From date must not be later than To date',

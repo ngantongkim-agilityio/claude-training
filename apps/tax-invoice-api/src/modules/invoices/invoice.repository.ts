@@ -1,5 +1,10 @@
 import { InvoiceModel } from '@/models'
-import { InvoiceHistory, InvoiceStatus, UserRole } from '@/types'
+import {
+  InvoiceFieldChange,
+  InvoiceHistory,
+  InvoiceStatus,
+  UserRole,
+} from '@/types'
 import {
   escapeRegExp,
   getDateRangeUTC,
@@ -12,9 +17,20 @@ import type {
   GetInvoicesResponseDTO,
 } from './invoice.dto'
 
+// Matches the `__v` the caller read. A document written outside Mongoose may have none
+// (`null`); an undefined value would be dropped from the filter and disable the guard.
+const versionFilter = (version: number | null) => ({
+  __v: version ?? { $exists: false },
+})
+
 /**
  * Repository handling all direct Database Access Object (DAO) mutations for Invoices.
  * Implements the standard BaseRepository interface to decoupling data source mechanisms.
+ *
+ * Every invoice write must go through a guarded method (updateStatus, updateInfo,
+ * softDelete). Each one matches the `__v` the caller read and bumps it, so of two
+ * writes made from the same read only the first applies. A `save()` or the unguarded
+ * generic `update` would skip that check and let a stale write overwrite a newer one.
  */
 export class InvoiceRepository implements BaseRepository<
   InvoiceEntity,
@@ -157,20 +173,65 @@ export class InvoiceRepository implements BaseRepository<
 
   /**
    * Moves a live invoice from the status the caller read to a new one, appending its
-   * history event in the same update. Matching on `fromStatus` means that when two
-   * decisions race (e.g. approve and reject), only the first is applied; the other
-   * matches nothing and returns null.
+   * history event in the same update. Matching on `fromStatus` and the `__v` read means
+   * that when two writes race (e.g. approve and reject, or an edit and a resubmit), only
+   * the first is applied; the other matches nothing and returns null.
    */
   async updateStatus(
     invoiceNumber: string,
+    version: number | null,
     fromStatus: InvoiceStatus,
     toStatus: InvoiceStatus,
     event: InvoiceHistory,
   ): Promise<InvoiceEntity | null> {
     const invoice = await InvoiceModel.findOneAndUpdate(
-      { invoiceNumber, isDeleted: { $ne: true }, status: fromStatus },
-      { $set: { status: toStatus }, $push: { histories: event } },
+      {
+        invoiceNumber,
+        isDeleted: { $ne: true },
+        status: fromStatus,
+        ...versionFilter(version),
+      },
+      {
+        $set: { status: toStatus },
+        $push: { histories: event },
+        $inc: { __v: 1 },
+      },
       { new: true },
+    ).lean()
+
+    if (!invoice) return null
+    return invoice as unknown as InvoiceEntity
+  }
+
+  /**
+   * Applies an owner's field edits to a live invoice, appending the history event (when
+   * there is one) in the same update. Matching on the `__v` read means an edit made from
+   * an out-of-date read matches nothing and returns null, instead of overwriting a newer
+   * edit or a status change. The status is never set here, so a rejected invoice stays rejected.
+   */
+  async updateInfo(
+    invoiceNumber: string,
+    version: number | null,
+    changes: Record<string, InvoiceFieldChange>,
+    event?: InvoiceHistory,
+  ): Promise<InvoiceEntity | null> {
+    const fields = Object.fromEntries(
+      Object.entries(changes).map(([field, change]) => [field, change.new]),
+    )
+
+    const invoice = await InvoiceModel.findOneAndUpdate(
+      {
+        invoiceNumber,
+        isDeleted: { $ne: true },
+        ...versionFilter(version),
+      },
+      {
+        $set: fields,
+        ...(event && { $push: { histories: event } }),
+        $inc: { __v: 1 },
+      },
+      // Edits used to go through save(), which ran the schema validators; keep that
+      { new: true, runValidators: true },
     ).lean()
 
     if (!invoice) return null
@@ -180,18 +241,26 @@ export class InvoiceRepository implements BaseRepository<
   /**
    * Flags an existing object instance as deleted without destroying the structural log.
    * An optional history event is appended in the same update, so the flag and its audit
-   * entry are written together. Matching only live invoices keeps a concurrent second
-   * delete from appending a duplicate deleted event.
+   * entry are written together. Matching the `__v` read keeps a concurrent second delete
+   * from appending a duplicate deleted event, and makes an edit that raced the delete fail.
+   * `version` is optional only because `BaseRepository.softDelete(id)` has no such argument;
+   * the invoice service always passes the one it read (`null` when the document has none).
    */
   async softDelete(
     invoiceNumber: string,
+    version?: number | null,
     event?: InvoiceHistory,
   ): Promise<InvoiceEntity | null> {
     const invoice = await InvoiceModel.findOneAndUpdate(
-      { invoiceNumber, isDeleted: { $ne: true } },
+      {
+        invoiceNumber,
+        isDeleted: { $ne: true },
+        ...(version !== undefined && versionFilter(version)),
+      },
       {
         $set: { isDeleted: true },
         ...(event && { $push: { histories: event } }),
+        $inc: { __v: 1 },
       },
       { new: true },
     ).lean()

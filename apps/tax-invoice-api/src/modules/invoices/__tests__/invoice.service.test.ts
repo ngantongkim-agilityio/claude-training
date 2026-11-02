@@ -17,12 +17,7 @@ import {
 } from '@/utils'
 
 // Types
-import {
-  InvoiceEventType,
-  InvoiceHistory,
-  InvoiceStatus,
-  UserRole,
-} from '@/types'
+import { InvoiceEventType, InvoiceStatus, UserRole } from '@/types'
 
 // Mock Mongoose Model Core Layer
 jest.mock('@/models', () => ({
@@ -267,10 +262,16 @@ describe('Invoice Service', () => {
   describe('updateInvoiceStatus', () => {
     const invoiceNumber = mockInvoiceRaw.invoiceNumber
     const adminEmail = 'admin@example.com'
+    // The version read with the invoice; every write must be guarded on it
+    const storedVersion = 4
+    const rejectingAdmin = 'rejecting.admin@example.com'
+    // What an admin's client sends back: the updatedAt of the version they reviewed
+    const seenUpdatedAt = mockDate.toISOString()
 
     const givenStoredInvoice = (overrides: Record<string, unknown>) => {
       ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce({
         ...mockInvoice,
+        __v: storedVersion,
         ...overrides,
       })
     }
@@ -289,10 +290,16 @@ describe('Invoice Service', () => {
     ) => {
       expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
       expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { invoiceNumber, isDeleted: { $ne: true }, status: fromStatus },
+        {
+          invoiceNumber,
+          isDeleted: { $ne: true },
+          status: fromStatus,
+          __v: storedVersion,
+        },
         {
           $set: { status: toStatus },
           $push: { histories: { ...event, createdAt: expect.any(Date) } },
+          $inc: { __v: 1 },
         },
         { new: true },
       )
@@ -324,6 +331,7 @@ describe('Invoice Service', () => {
         invoiceNumber,
         status: InvoiceStatus.REJECTED,
         reason: 'Tax should be 10%',
+        expectedUpdatedAt: seenUpdatedAt,
         userEmail: adminEmail,
         role: UserRole.ADMIN,
       })
@@ -344,6 +352,7 @@ describe('Invoice Service', () => {
         invoiceNumber,
         status: InvoiceStatus.APPROVED,
         comment: 'Matches PO-2291',
+        expectedUpdatedAt: seenUpdatedAt,
         userEmail: adminEmail,
         role: UserRole.ADMIN,
       })
@@ -369,6 +378,7 @@ describe('Invoice Service', () => {
           invoiceNumber,
           status: InvoiceStatus.APPROVED,
           comment,
+          expectedUpdatedAt: seenUpdatedAt,
           userEmail: adminEmail,
           role: UserRole.ADMIN,
         })
@@ -387,6 +397,7 @@ describe('Invoice Service', () => {
         invoiceService.updateInvoiceStatus({
           invoiceNumber,
           status: InvoiceStatus.APPROVED,
+          expectedUpdatedAt: seenUpdatedAt,
           userEmail: adminEmail,
           role: UserRole.ADMIN,
         }),
@@ -408,22 +419,34 @@ describe('Invoice Service', () => {
       expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
     })
 
-    it.each([InvoiceStatus.APPROVED, InvoiceStatus.REJECTED])(
-      'should throw ConflictError and write nothing when the invoice is %s',
-      async (currentStatus) => {
-        givenStoredInvoice({ status: currentStatus })
+    it('should throw ConflictError and write nothing when the invoice is approved', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.APPROVED })
 
-        await expect(
-          invoiceService.updateInvoiceStatus({
-            invoiceNumber,
-            status: InvoiceStatus.SUBMITTED,
-            userEmail: adminEmail,
-            role: UserRole.ADMIN,
-          }),
-        ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE))
-        expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
-      },
-    )
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.SUBMITTED,
+          userEmail: adminEmail,
+          role: UserRole.ADMIN,
+        }),
+      ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    // A rejected invoice is no longer final, so a transition it does not allow is 403 (T3-DQ1)
+    it('should throw ForbiddenError INVALID_STATUS and write nothing when an admin submits a rejected invoice', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED })
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.SUBMITTED,
+          userEmail: adminEmail,
+          role: UserRole.ADMIN,
+        }),
+      ).rejects.toEqual(new ForbiddenError(ERROR_MESSAGE.INVALID_STATUS))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
 
     it('should keep 403 INVALID_STATUS and write nothing when an owner tries to approve', async () => {
       givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
@@ -439,7 +462,7 @@ describe('Invoice Service', () => {
       expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
     })
 
-    it('should throw ConflictError when another request changed the status first', async () => {
+    it('should throw ConflictError INVOICE_CHANGED when another request changed the invoice first', async () => {
       givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
       givenGuardedUpdate(null)
 
@@ -448,35 +471,318 @@ describe('Invoice Service', () => {
           invoiceNumber,
           status: InvoiceStatus.REJECTED,
           reason: 'Tax should be 10%',
+          expectedUpdatedAt: seenUpdatedAt,
+          userEmail: adminEmail,
+          role: UserRole.ADMIN,
+        }),
+      ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED))
+    })
+
+    // ---- KAN-6: rework of rejected invoices ----
+    it('should record a resubmitted event when the owner resubmits a rejected invoice (TC-29)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED })
+      givenGuardedUpdate({ ...mockInvoice, status: InvoiceStatus.SUBMITTED })
+
+      const result = await invoiceService.updateInvoiceStatus({
+        invoiceNumber,
+        status: InvoiceStatus.SUBMITTED,
+        userEmail: mockPayload.user,
+        role: UserRole.USER,
+      })
+
+      expectGuardedUpdate(InvoiceStatus.REJECTED, InvoiceStatus.SUBMITTED, {
+        eventType: InvoiceEventType.RESUBMITTED,
+        actor: mockPayload.user,
+      })
+      expect(result).toEqual({ invoiceNumber, status: InvoiceStatus.SUBMITTED })
+    })
+
+    it.each([
+      ['another admin approves', 'second.admin@example.com', 'approved'],
+      ['the rejecting admin rejects again', rejectingAdmin, 'rejected'],
+    ])(
+      'should let any admin decide a resubmitted invoice: %s (TC-30)',
+      async (_label, adminActor, decision) => {
+        givenStoredInvoice({
+          status: InvoiceStatus.SUBMITTED,
+          histories: [
+            {
+              eventType: InvoiceEventType.REJECTED,
+              actor: rejectingAdmin,
+              reason: 'Tax is wrong',
+              createdAt: mockDate,
+            },
+            {
+              eventType: InvoiceEventType.RESUBMITTED,
+              actor: mockPayload.user,
+              createdAt: mockDate,
+            },
+          ],
+        })
+        givenGuardedUpdate({ ...mockInvoice, status: decision })
+
+        const result = await invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: decision as InvoiceStatus,
+          ...(decision === 'rejected' && { reason: 'Still wrong' }),
+          expectedUpdatedAt: seenUpdatedAt,
+          userEmail: adminActor,
+          role: UserRole.ADMIN,
+        })
+
+        expect(result.status).toBe(decision)
+        expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
+      },
+    )
+
+    it('should throw ForbiddenError and write nothing when someone else resubmits a rejected invoice (TC-33)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED })
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.SUBMITTED,
+          userEmail: 'attacker@example.com',
+          role: UserRole.USER,
+        }),
+      ).rejects.toEqual(new ForbiddenError(ERROR_MESSAGE.FORBIDDEN))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [InvoiceStatus.APPROVED, UserRole.USER],
+      [InvoiceStatus.REJECTED, UserRole.USER],
+      [InvoiceStatus.DRAFT, UserRole.USER],
+      [InvoiceStatus.APPROVED, UserRole.ADMIN],
+      [InvoiceStatus.REJECTED, UserRole.ADMIN],
+      [InvoiceStatus.DRAFT, UserRole.ADMIN],
+    ])(
+      'should throw 403 INVALID_STATUS and write nothing for %s on a rejected invoice by a %s (TC-36)',
+      async (status, role) => {
+        givenStoredInvoice({ status: InvoiceStatus.REJECTED })
+
+        await expect(
+          invoiceService.updateInvoiceStatus({
+            invoiceNumber,
+            status,
+            ...(status === InvoiceStatus.REJECTED && { reason: 'Still wrong' }),
+            expectedUpdatedAt: seenUpdatedAt,
+            userEmail: role === UserRole.ADMIN ? adminEmail : mockPayload.user,
+            role,
+          }),
+        ).rejects.toEqual(new ForbiddenError(ERROR_MESSAGE.INVALID_STATUS))
+        expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+      },
+    )
+
+    it('should guard a resubmit on a missing __v when the stored invoice has none (TC-35)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED, __v: undefined })
+      givenGuardedUpdate({ ...mockInvoice, status: InvoiceStatus.SUBMITTED })
+
+      await invoiceService.updateInvoiceStatus({
+        invoiceNumber,
+        status: InvoiceStatus.SUBMITTED,
+        userEmail: mockPayload.user,
+        role: UserRole.USER,
+      })
+
+      // An undefined value would be dropped from the filter and disable the guard
+      expect(
+        (InvoiceModel.findOneAndUpdate as jest.Mock).mock.calls[0][0],
+      ).toMatchObject({ __v: { $exists: false } })
+    })
+
+    it('should keep an approved invoice final for the owner (TC-34)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.APPROVED })
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.SUBMITTED,
+          userEmail: mockPayload.user,
+          role: UserRole.USER,
+        }),
+      ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it('should throw INVOICE_CHANGED with the exact message and write nothing when an approval is stale (TC-62)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.APPROVED,
+          expectedUpdatedAt: '2026-06-22T09:59:59.000Z',
+          userEmail: adminEmail,
+          role: UserRole.ADMIN,
+        }),
+      ).rejects.toEqual(
+        new ConflictError(
+          'This invoice has changed since you opened it. Reload it to review the latest version.',
+        ),
+      )
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it('should throw INVOICE_CHANGED and write nothing when a rejection is stale (TC-63)', async () => {
+      givenStoredInvoice({
+        status: InvoiceStatus.SUBMITTED,
+        updatedAt: new Date('2026-06-22T10:05:00.000Z'),
+      })
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.REJECTED,
+          reason: 'Tax is wrong',
+          expectedUpdatedAt: seenUpdatedAt,
+          userEmail: adminEmail,
+          role: UserRole.ADMIN,
+        }),
+      ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    // The stale check sits before the approved and transition checks (D3)
+    it('should answer a stale decision with INVOICE_CHANGED, not 409 CANNOT_UPDATE or 403 (TC-65)', async () => {
+      const stale = '2026-06-22T09:00:00.000Z'
+
+      for (const status of [InvoiceStatus.APPROVED, InvoiceStatus.REJECTED]) {
+        givenStoredInvoice({ status })
+        await expect(
+          invoiceService.updateInvoiceStatus({
+            invoiceNumber,
+            status: InvoiceStatus.APPROVED,
+            expectedUpdatedAt: stale,
+            userEmail: adminEmail,
+            role: UserRole.ADMIN,
+          }),
+        ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED))
+      }
+
+      // With a current timestamp the later checks apply again
+      givenStoredInvoice({ status: InvoiceStatus.APPROVED })
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.APPROVED,
+          expectedUpdatedAt: seenUpdatedAt,
           userEmail: adminEmail,
           role: UserRole.ADMIN,
         }),
       ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it('should not let the stale check hide a permission failure (TC-65)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.APPROVED,
+          expectedUpdatedAt: '2026-06-22T09:00:00.000Z',
+          userEmail: mockPayload.user,
+          role: UserRole.USER,
+        }),
+      ).rejects.toEqual(new ForbiddenError(ERROR_MESSAGE.INVALID_STATUS))
+    })
+
+    // Legacy rejected invoices were rejected before events and versioned writes existed
+    it('should resubmit a legacy rejected invoice with one resubmitted event and invent no rejected event (TC-35)', async () => {
+      givenStoredInvoice({
+        status: InvoiceStatus.REJECTED,
+        histories: [
+          { changes: { tax: { old: 5, new: 10 } }, createdAt: mockDate },
+        ],
+      })
+      givenGuardedUpdate({ ...mockInvoice, status: InvoiceStatus.SUBMITTED })
+
+      await invoiceService.updateInvoiceStatus({
+        invoiceNumber,
+        status: InvoiceStatus.SUBMITTED,
+        userEmail: mockPayload.user,
+        role: UserRole.USER,
+      })
+
+      expectGuardedUpdate(InvoiceStatus.REJECTED, InvoiceStatus.SUBMITTED, {
+        eventType: InvoiceEventType.RESUBMITTED,
+        actor: mockPayload.user,
+      })
+    })
+
+    it('should throw INVOICE_CHANGED when a legacy rejected invoice loses a write race (TC-35)', async () => {
+      givenStoredInvoice({
+        status: InvoiceStatus.REJECTED,
+        histories: [{ changes: {}, createdAt: mockDate }],
+      })
+      givenGuardedUpdate(null)
+
+      await expect(
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.SUBMITTED,
+          userEmail: mockPayload.user,
+          role: UserRole.USER,
+        }),
+      ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED))
+      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
     })
   })
 
   // ================= UPDATE INFO & HISTORIES =================
   describe('updateInvoiceInfo', () => {
     const invoiceNumber = mockInvoiceRaw.invoiceNumber
+    // The version read with the invoice; the write must be guarded on it
+    const storedVersion = 2
+
+    const givenStoredInvoice = (overrides: Record<string, unknown>) => {
+      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce({
+        ...mockInvoice,
+        __v: storedVersion,
+        ...overrides,
+      })
+    }
+
+    const givenTrackedChanges = (changes: Record<string, unknown>) => {
+      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce({
+        updatedInvoice: {},
+        changes,
+      })
+    }
+
+    // The guarded update returns the updated invoice, or null when nothing matched
+    const givenGuardedUpdate = (result: Record<string, unknown> | null) => {
+      ;(InvoiceModel.findOneAndUpdate as jest.Mock).mockReturnValueOnce({
+        lean: jest.fn().mockResolvedValueOnce(result),
+      })
+    }
+
+    const expectGuardedUpdate = (
+      set: Record<string, unknown>,
+      event?: Record<string, unknown>,
+    ) => {
+      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
+      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { invoiceNumber, isDeleted: { $ne: true }, __v: storedVersion },
+        {
+          $set: set,
+          ...(event && {
+            $push: { histories: { ...event, createdAt: expect.any(Date) } },
+          }),
+          $inc: { __v: 1 },
+        },
+        { new: true, runValidators: true },
+      )
+    }
+
+    const amountChange = { amount: { old: 1000, new: 2000 } }
 
     it('should log audit changes on histories array when modification hits SUBMITTED states', async () => {
-      const submittedInvoiceMock = {
-        ...mockInvoice,
-        status: InvoiceStatus.SUBMITTED,
-        histories: [] as any[],
-        save: jest.fn().mockResolvedValue(true),
-      }
-      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
-        submittedInvoiceMock,
-      )
-
-      const mockTrackedChanges = {
-        updatedInvoice: { amount: 2000 },
-        changes: { amount: { old: 1000, new: 2000 } },
-      }
-      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce(
-        mockTrackedChanges,
-      )
+      givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
+      givenTrackedChanges(amountChange)
+      givenGuardedUpdate({ ...mockInvoice, status: InvoiceStatus.SUBMITTED })
 
       const result = await invoiceService.updateInvoiceInfo({
         invoiceNumber,
@@ -484,39 +790,26 @@ describe('Invoice Service', () => {
         amount: 2000,
       })
 
-      expect(submittedInvoiceMock.histories.length).toBe(1)
-      expect(submittedInvoiceMock.histories[0]).toEqual({
-        eventType: InvoiceEventType.EDITED,
-        actor: mockPayload.user,
-        changes: mockTrackedChanges.changes,
-        createdAt: expect.any(Date),
-      })
-      expect(submittedInvoiceMock.save).toHaveBeenCalled()
+      expectGuardedUpdate(
+        { amount: 2000 },
+        {
+          eventType: InvoiceEventType.EDITED,
+          actor: mockPayload.user,
+          changes: amountChange,
+        },
+      )
       expect(result.updatedFields).toContain('amount')
     })
 
-    it('should append one edited event and keep earlier entries, legacy ones included, unchanged', async () => {
-      const earlierEntries = [
-        { changes: { tax: { old: 5, new: 10 } }, createdAt: mockDate },
-        {
-          eventType: InvoiceEventType.CREATED,
-          actor: mockPayload.user,
-          createdAt: mockDate,
-        },
-      ]
-      const submittedInvoiceMock = {
-        ...mockInvoice,
+    it('should append one edited event without touching earlier entries, legacy ones included', async () => {
+      givenStoredInvoice({
         status: InvoiceStatus.SUBMITTED,
-        histories: structuredClone(earlierEntries),
-        save: jest.fn().mockResolvedValue(true),
-      }
-      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
-        submittedInvoiceMock,
-      )
-      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce({
-        updatedInvoice: { amount: 2000 },
-        changes: { amount: { old: 1000, new: 2000 } },
+        histories: [
+          { changes: { tax: { old: 5, new: 10 } }, createdAt: mockDate },
+        ],
       })
+      givenTrackedChanges(amountChange)
+      givenGuardedUpdate({ ...mockInvoice })
 
       await invoiceService.updateInvoiceInfo({
         invoiceNumber,
@@ -524,28 +817,17 @@ describe('Invoice Service', () => {
         amount: 2000,
       })
 
-      expect(submittedInvoiceMock.histories).toHaveLength(3)
-      expect(submittedInvoiceMock.histories.slice(0, 2)).toEqual(earlierEntries)
-      expect(submittedInvoiceMock.histories[2].eventType).toBe(
-        InvoiceEventType.EDITED,
-      )
-      expect(submittedInvoiceMock.save).toHaveBeenCalled()
+      // Earlier entries are never rewritten: the event is appended with $push only
+      const update = (InvoiceModel.findOneAndUpdate as jest.Mock).mock
+        .calls[0][1]
+      expect(update.$push.histories.eventType).toBe(InvoiceEventType.EDITED)
+      expect(update.$set).not.toHaveProperty('histories')
     })
 
     it('should save a draft edit without recording an event', async () => {
-      const draftInvoiceMock = {
-        ...mockInvoice,
-        status: InvoiceStatus.DRAFT,
-        histories: [] as InvoiceHistory[],
-        save: jest.fn().mockResolvedValue(true),
-      }
-      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
-        draftInvoiceMock,
-      )
-      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce({
-        updatedInvoice: { amount: 2000 },
-        changes: { amount: { old: 1000, new: 2000 } },
-      })
+      givenStoredInvoice({ status: InvoiceStatus.DRAFT })
+      givenTrackedChanges(amountChange)
+      givenGuardedUpdate({ ...mockInvoice })
 
       const result = await invoiceService.updateInvoiceInfo({
         invoiceNumber,
@@ -553,25 +835,13 @@ describe('Invoice Service', () => {
         amount: 2000,
       })
 
-      expect(draftInvoiceMock.save).toHaveBeenCalled()
-      expect(draftInvoiceMock.histories).toHaveLength(0)
+      expectGuardedUpdate({ amount: 2000 })
       expect(result.updatedFields).toEqual(['amount'])
     })
 
-    it('should record nothing when a submitted invoice update changes no value', async () => {
-      const submittedInvoiceMock = {
-        ...mockInvoice,
-        status: InvoiceStatus.SUBMITTED,
-        histories: [] as InvoiceHistory[],
-        save: jest.fn().mockResolvedValue(true),
-      }
-      ;(InvoiceModel.findOne as jest.Mock).mockResolvedValueOnce(
-        submittedInvoiceMock,
-      )
-      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce({
-        updatedInvoice: { amount: mockInvoice.amount },
-        changes: {},
-      })
+    it('should write nothing when a submitted invoice update changes no value', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.SUBMITTED })
+      givenTrackedChanges({})
 
       const result = await invoiceService.updateInvoiceInfo({
         invoiceNumber,
@@ -579,19 +849,178 @@ describe('Invoice Service', () => {
         amount: mockInvoice.amount,
       })
 
-      expect(submittedInvoiceMock.histories).toHaveLength(0)
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
       expect(result.updatedFields).toEqual([])
+    })
+
+    it('should let the owner edit a rejected invoice, keep it rejected and record an edited event (TC-04, TC-27)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED })
+      givenTrackedChanges(amountChange)
+      givenGuardedUpdate({ ...mockInvoice, status: InvoiceStatus.REJECTED })
+
+      const result = await invoiceService.updateInvoiceInfo({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+        amount: 2000,
+      })
+
+      // Only the changed field is set, so the status stays rejected
+      expectGuardedUpdate(
+        { amount: 2000 },
+        {
+          eventType: InvoiceEventType.EDITED,
+          actor: mockPayload.user,
+          changes: amountChange,
+        },
+      )
+      expect(result).toEqual({
+        invoiceNumber,
+        updatedFields: ['amount'],
+      })
+    })
+
+    it('should record no event and write nothing when a rejected invoice edit changes no value (TC-27)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED })
+      givenTrackedChanges({})
+
+      const result = await invoiceService.updateInvoiceInfo({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+        amount: mockInvoice.amount,
+      })
+
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+      expect(result.updatedFields).toEqual([])
+    })
+
+    it.each([
+      ['another user', 'attacker@example.com'],
+      ['an admin', 'admin@example.com'],
+    ])(
+      'should throw ForbiddenError and write nothing when %s edits a rejected invoice (TC-33)',
+      async (_label, userEmail) => {
+        givenStoredInvoice({ status: InvoiceStatus.REJECTED })
+
+        await expect(
+          invoiceService.updateInvoiceInfo({
+            invoiceNumber,
+            userEmail,
+            amount: 2000,
+          }),
+        ).rejects.toEqual(new ForbiddenError(ERROR_MESSAGE.FORBIDDEN))
+        expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+      },
+    )
+
+    it('should keep an approved invoice final for edits (TC-34)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.APPROVED })
+
+      await expect(
+        invoiceService.updateInvoiceInfo({
+          invoiceNumber,
+          userEmail: mockPayload.user,
+          amount: 2000,
+        }),
+      ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+
+    it('should edit a legacy rejected invoice and append only an edited event (TC-35)', async () => {
+      givenStoredInvoice({
+        status: InvoiceStatus.REJECTED,
+        histories: [{ changes: {}, createdAt: mockDate }],
+      })
+      givenTrackedChanges(amountChange)
+      givenGuardedUpdate({ ...mockInvoice })
+
+      await invoiceService.updateInvoiceInfo({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+        amount: 2000,
+      })
+
+      const update = (InvoiceModel.findOneAndUpdate as jest.Mock).mock
+        .calls[0][1]
+      expect(update.$push.histories.eventType).toBe(InvoiceEventType.EDITED)
+    })
+
+    it.each([
+      InvoiceStatus.DRAFT,
+      InvoiceStatus.SUBMITTED,
+      InvoiceStatus.REJECTED,
+    ])(
+      'should throw INVOICE_CHANGED and make no second write when the guarded %s edit matches nothing (TC-66)',
+      async (status) => {
+        givenStoredInvoice({ status })
+        givenTrackedChanges(amountChange)
+        givenGuardedUpdate(null)
+
+        await expect(
+          invoiceService.updateInvoiceInfo({
+            invoiceNumber,
+            userEmail: mockPayload.user,
+            amount: 2000,
+          }),
+        ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED))
+        expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
+      },
+    )
+
+    it('should guard an edit on a missing __v when the stored invoice has none (TC-35)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED, __v: undefined })
+      givenTrackedChanges(amountChange)
+      givenGuardedUpdate({ ...mockInvoice })
+
+      await invoiceService.updateInvoiceInfo({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+        amount: 2000,
+      })
+
+      expect(
+        (InvoiceModel.findOneAndUpdate as jest.Mock).mock.calls[0][0],
+      ).toMatchObject({ __v: { $exists: false } })
     })
   })
 
   // ================= DELETE =================
   describe('deleteInvoice', () => {
     const invoiceNumber = mockInvoiceRaw.invoiceNumber
+    // The version read with the invoice; the soft delete must be guarded on it
+    const storedVersion = 6
+
+    const givenStoredInvoice = (overrides: Record<string, unknown> = {}) => {
+      ;(InvoiceModel.findOne as jest.Mock).mockReturnValue({
+        lean: jest.fn().mockResolvedValueOnce({
+          ...mockInvoice,
+          __v: storedVersion,
+          ...overrides,
+        }),
+      })
+    }
+
+    const expectGuardedSoftDelete = () => {
+      // The deleted event is pushed in the same write as the soft delete
+      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
+      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { invoiceNumber, isDeleted: { $ne: true }, __v: storedVersion },
+        {
+          $set: { isDeleted: true },
+          $push: {
+            histories: {
+              eventType: InvoiceEventType.DELETED,
+              actor: mockPayload.user,
+              createdAt: expect.any(Date),
+            },
+          },
+          $inc: { __v: 1 },
+        },
+        { new: true },
+      )
+    }
 
     it('should let owners execute soft-delete if current state remains flexible', async () => {
-      ;(InvoiceModel.findOne as jest.Mock).mockReturnValue({
-        lean: jest.fn().mockResolvedValueOnce(mockInvoice), // Repository.findById call
-      })
+      givenStoredInvoice()
       ;(InvoiceModel.findOneAndUpdate as jest.Mock).mockReturnValue({
         lean: jest
           .fn()
@@ -603,23 +1032,55 @@ describe('Invoice Service', () => {
         userEmail: mockPayload.user,
       })
 
-      // The deleted event is pushed in the same write as the soft delete
-      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
-      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { invoiceNumber, isDeleted: { $ne: true } },
-        {
-          $set: { isDeleted: true },
-          $push: {
-            histories: {
-              eventType: InvoiceEventType.DELETED,
-              actor: mockPayload.user,
-              createdAt: expect.any(Date),
-            },
-          },
-        },
-        { new: true },
-      )
+      expectGuardedSoftDelete()
       expect(result).toEqual({ invoiceNumber, deleted: true })
+    })
+
+    it('should guard a delete on a missing __v when the stored invoice has none (TC-35)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED, __v: undefined })
+      ;(InvoiceModel.findOneAndUpdate as jest.Mock).mockReturnValue({
+        lean: jest
+          .fn()
+          .mockResolvedValueOnce({ ...mockInvoice, isDeleted: true }),
+      })
+
+      await invoiceService.deleteInvoice({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+      })
+
+      expect(
+        (InvoiceModel.findOneAndUpdate as jest.Mock).mock.calls[0][0],
+      ).toMatchObject({ __v: { $exists: false } })
+    })
+
+    it('should let the owner delete a rejected invoice (TC-32)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED })
+      ;(InvoiceModel.findOneAndUpdate as jest.Mock).mockReturnValue({
+        lean: jest
+          .fn()
+          .mockResolvedValueOnce({ ...mockInvoice, isDeleted: true }),
+      })
+
+      const result = await invoiceService.deleteInvoice({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+      })
+
+      expectGuardedSoftDelete()
+      expect(result).toEqual({ invoiceNumber, deleted: true })
+    })
+
+    it('should throw ForbiddenError and write nothing when someone else deletes a rejected invoice (TC-33)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED })
+
+      await expect(
+        invoiceService.deleteInvoice({
+          invoiceNumber,
+          userEmail: 'attacker@example.com',
+        }),
+      ).rejects.toEqual(new ForbiddenError(ERROR_MESSAGE.FORBIDDEN))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
     })
 
     it('should return 404 for detail and history once the invoice is deleted', async () => {
@@ -644,11 +1105,9 @@ describe('Invoice Service', () => {
       })
     })
 
-    // A concurrent delete flags the invoice first, so this write matches nothing
-    it('should throw NotFoundError if the soft delete matches no live invoice', async () => {
-      ;(InvoiceModel.findOne as jest.Mock).mockReturnValue({
-        lean: jest.fn().mockResolvedValueOnce(mockInvoice),
-      })
+    // A concurrent delete or edit bumps the version first, so this write matches nothing
+    it('should throw INVOICE_CHANGED if the guarded soft delete matches nothing (TC-66)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.REJECTED })
       ;(InvoiceModel.findOneAndUpdate as jest.Mock).mockReturnValue({
         lean: jest.fn().mockResolvedValueOnce(null),
       })
@@ -658,7 +1117,8 @@ describe('Invoice Service', () => {
           invoiceNumber,
           userEmail: mockPayload.user,
         }),
-      ).rejects.toBeInstanceOf(NotFoundError)
+      ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED))
+      expect(InvoiceModel.findOneAndUpdate).toHaveBeenCalledTimes(1)
     })
 
     it('should throw ConflictError if trying to wipe out validated final state collections', async () => {
@@ -676,6 +1136,162 @@ describe('Invoice Service', () => {
           userEmail: mockPayload.user,
         }),
       ).rejects.toThrow()
+    })
+
+    it('should keep 409 CANNOT_DELETE and write nothing for an approved invoice (TC-34)', async () => {
+      givenStoredInvoice({ status: InvoiceStatus.APPROVED })
+
+      await expect(
+        invoiceService.deleteInvoice({
+          invoiceNumber,
+          userEmail: mockPayload.user,
+        }),
+      ).rejects.toEqual(new ConflictError(ERROR_MESSAGE.CANNOT_DELETE))
+      expect(InvoiceModel.findOneAndUpdate).not.toHaveBeenCalled()
+    })
+  })
+
+  // ================= REWORK CYCLES (stateful fake) =================
+  // A tiny in-memory stand-in for the guarded writes, so a whole reject / resubmit
+  // loop runs through the real service and repository and the stored events can be read back.
+  describe('reject and resubmit cycles', () => {
+    const invoiceNumber = mockInvoiceRaw.invoiceNumber
+    const adminEmail = 'admin@example.com'
+    let stored: any
+    let clock: number
+
+    beforeEach(() => {
+      clock = mockDate.getTime()
+      stored = {
+        ...mockInvoiceRaw,
+        status: InvoiceStatus.SUBMITTED,
+        __v: 0,
+        histories: [],
+        updatedAt: new Date(clock),
+      }
+      ;(InvoiceModel.findOne as jest.Mock).mockImplementation(async () => ({
+        ...stored,
+        histories: [...stored.histories],
+      }))
+      ;(InvoiceModel.findOneAndUpdate as jest.Mock).mockImplementation(
+        (filter: any, update: any) => ({
+          lean: async () => {
+            const versionMoved = filter.__v !== stored.__v
+            const statusMoved =
+              filter.status !== undefined && filter.status !== stored.status
+            if (versionMoved || statusMoved) return null
+            Object.assign(stored, update.$set)
+            if (update.$push) stored.histories.push(update.$push.histories)
+            stored.__v += update.$inc.__v
+            clock += 1000
+            stored.updatedAt = new Date(clock)
+            return { ...stored }
+          },
+        }),
+      )
+    })
+
+    afterEach(() => {
+      ;(InvoiceModel.findOne as jest.Mock).mockReset()
+      ;(InvoiceModel.findOneAndUpdate as jest.Mock).mockReset()
+    })
+
+    it('should keep one invoice number and record six events over three reject and resubmit cycles (TC-28, TC-29, TC-31)', async () => {
+      for (let cycle = 1; cycle <= 3; cycle++) {
+        await invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.REJECTED,
+          reason: `Round ${cycle}`,
+          expectedUpdatedAt: stored.updatedAt.toISOString(),
+          userEmail: adminEmail,
+          role: UserRole.ADMIN,
+        })
+        await invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.SUBMITTED,
+          userEmail: mockPayload.user,
+          role: UserRole.USER,
+        })
+      }
+
+      expect(stored.invoiceNumber).toBe(invoiceNumber)
+      expect(stored.status).toBe(InvoiceStatus.SUBMITTED)
+      expect(stored.histories.map((h: any) => h.eventType)).toEqual([
+        InvoiceEventType.REJECTED,
+        InvoiceEventType.RESUBMITTED,
+        InvoiceEventType.REJECTED,
+        InvoiceEventType.RESUBMITTED,
+        InvoiceEventType.REJECTED,
+        InvoiceEventType.RESUBMITTED,
+      ])
+    })
+
+    it('should let the owner edit between rejection and resubmission without leaving rejected (TC-27, TC-28)', async () => {
+      await invoiceService.updateInvoiceStatus({
+        invoiceNumber,
+        status: InvoiceStatus.REJECTED,
+        reason: 'Tax is wrong',
+        expectedUpdatedAt: stored.updatedAt.toISOString(),
+        userEmail: adminEmail,
+        role: UserRole.ADMIN,
+      })
+      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce({
+        updatedInvoice: {},
+        changes: { tax: { old: 10, new: 20 } },
+      })
+
+      await invoiceService.updateInvoiceInfo({
+        invoiceNumber,
+        userEmail: mockPayload.user,
+        tax: 20,
+      })
+
+      expect(stored.status).toBe(InvoiceStatus.REJECTED)
+      expect(stored.tax).toBe(20)
+      expect(stored.histories.map((h: any) => h.eventType)).toEqual([
+        InvoiceEventType.REJECTED,
+        InvoiceEventType.EDITED,
+      ])
+    })
+
+    // Both requests read the same version; only the first write can match it
+    it('should let one of two simultaneous saves succeed and answer the other INVOICE_CHANGED (TC-66)', async () => {
+      await invoiceService.updateInvoiceStatus({
+        invoiceNumber,
+        status: InvoiceStatus.REJECTED,
+        reason: 'Tax is wrong',
+        expectedUpdatedAt: stored.updatedAt.toISOString(),
+        userEmail: adminEmail,
+        role: UserRole.ADMIN,
+      })
+      ;(trackInvoiceChanges as jest.Mock).mockReturnValueOnce({
+        updatedInvoice: {},
+        changes: { tax: { old: 10, new: 20 } },
+      })
+
+      const results = await Promise.allSettled([
+        invoiceService.updateInvoiceInfo({
+          invoiceNumber,
+          userEmail: mockPayload.user,
+          tax: 20,
+        }),
+        invoiceService.updateInvoiceStatus({
+          invoiceNumber,
+          status: InvoiceStatus.SUBMITTED,
+          userEmail: mockPayload.user,
+          role: UserRole.USER,
+        }),
+      ])
+
+      expect(results.map((r) => r.status).sort()).toEqual([
+        'fulfilled',
+        'rejected',
+      ])
+      const failure = results.find((r) => r.status === 'rejected') as
+        PromiseRejectedResult | undefined
+      expect(failure?.reason).toEqual(
+        new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED),
+      )
     })
   })
 
