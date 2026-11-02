@@ -19,6 +19,7 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `.claude/hooks/block-forbidden-command.mjs` — Claude Code guard blocking `git push` to `main` / force pushes.
 - `.claude/agents/` — project subagents, read-only by instruction: `business-analyst` (drafts a Jira ticket from a vague brief for `create-ticket`) and `code-reviewer` (independent review of a branch, diff, or PR).
 - `.claude/skills/` — project skills for the Jira ticket workflow: `create-ticket` → `analyze-ticket` → `plan-ticket` → `implement-ticket` → `ship-ticket` (one ticket, `KAN-<n>`), plus `create-pr` (GitHub PR from the template).
+- `.claude/commands/` — read-only project commands: `repo-check` (where the repo stands) and `ci-watch` (one CI status line for a PR, for `/loop`).
 - `.github/ISSUE_TEMPLATE/` — GitHub issue forms (`bug`, `feature`, `chore`), kept as they are; tasks are not tracked in GitHub Issues.
 - `.github/pull_request_template.md` — GitHub PR description template (Summary, Changes, Testing, Risks, Checklist).
 - `.github/workflows/` — Claude PR assistant (`claude.yml`: `@claude` in issue/PR comments, collaborators only, answer-only, `claude-review` environment) and CI quality gate (`ci.yml`: tracked-secret check and `pnpm check` on pushes/PRs to `main`).
