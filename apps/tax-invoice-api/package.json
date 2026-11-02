@@ -11,6 +11,7 @@
     "worker:report-email": "node dist/workers/report-email.worker.js",
     "lint": "eslint src --fix && prettier src --write",
     "lint:check": "eslint src && prettier src --check",
+    "format": "prettier src --write",
     "check": "tsc --noEmit && eslint src && prettier src --check && jest --coverage=false",
     "test": "jest",
     "typecheck": "tsc --noEmit",

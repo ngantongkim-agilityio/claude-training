@@ -13,23 +13,60 @@
     "AUTH0_DOMAIN",
     "AUTH0_AUDIENCE",
     "CORS_ORIGIN",
-    "APP_TIMEZONE"
+    "APP_TIMEZONE",
+    "PORT",
+    "LOG_LEVEL",
+    "RATE_LIMIT_WINDOW_MS",
+    "RATE_LIMIT_MAX",
+    "AUTH0_*",
+    "API_BASE_URL",
+    "NEXT_PUBLIC_*"
   ],
   "tasks": {
-    "check": {
-      "outputs": []
+    "dev": {
+      "cache": false,
+      "persistent": true
     },
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ]
+    },
+    "start": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false,
+      "persistent": true
+    },
+    "worker:report-email": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false,
+      "persistent": true
     },
     "lint": {
       "outputs": []
+    },
+    "lint:check": {
+      "outputs": []
+    },
+    "format": {
+      "cache": false
     },
     "test": {
       "outputs": []
     },
     "typecheck": {
+      "outputs": []
+    },
+    "check": {
       "outputs": []
     }
   }
