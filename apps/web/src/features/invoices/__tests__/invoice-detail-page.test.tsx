@@ -7,7 +7,10 @@ import { useCurrentUser } from "@/hooks/use-current-user"
 import { invoiceKeys } from "@/hooks/use-invoices"
 import type { Invoice, InvoiceHistoryEntry } from "@/features/invoices/types"
 
-jest.mock("@/services/api-client", () => ({ apiClient: jest.fn() }))
+jest.mock("@/services/api-client", () => ({
+  ...jest.requireActual("@/services/api-client"),
+  apiClient: jest.fn(),
+}))
 jest.mock("@/hooks/use-current-user", () => ({ useCurrentUser: jest.fn() }))
 jest.mock("next/navigation", () => ({
   useParams: () => ({ invoiceNumber: "INV-1" }),
@@ -56,6 +59,20 @@ const renderPage = () => {
     </QueryClientProvider>,
   )
   return queryClient
+}
+
+const renderPageWithRerender = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  // A fresh element each time, so React re-renders and re-reads the mocked user
+  const ui = () => (
+    <QueryClientProvider client={queryClient}>
+      <InvoiceDetailPage />
+    </QueryClientProvider>
+  )
+  const { rerender } = render(ui())
+  return { rerender: () => rerender(ui()) }
 }
 
 const calledPaths = () => mockApiClient.mock.calls.map(([path]) => path)
@@ -162,5 +179,238 @@ describe("InvoiceDetailPage history", () => {
     })
     // Same list element: the page refetched in the background instead of reloading
     expect(screen.getByRole("list", { name: "History" })).toBe(list)
+  })
+})
+
+const rejectedEntry = (
+  overrides: Partial<InvoiceHistoryEntry> = {},
+): InvoiceHistoryEntry => ({
+  eventType: "rejected",
+  actor: "finance.thu@example.com",
+  changes: {},
+  createdAt: "2026-11-04T03:00:00.000Z",
+  reason: "Tax should be 10% of the amount.",
+  ...overrides,
+})
+
+const buttonNames = () =>
+  screen.queryAllByRole("button").map((button) => button.textContent?.trim())
+
+describe("InvoiceDetailPage actions by status", () => {
+  const ACTIONS = ["Submit", "Approve", "Reject", "Edit", "Delete", "Resubmit"]
+  const visibleActions = () =>
+    ACTIONS.filter((name) => buttonNames().includes(name))
+
+  // TC-42
+  it.each([
+    ["draft", "user", ["Submit", "Edit", "Delete"]],
+    ["submitted", "user", ["Edit", "Delete"]],
+    ["rejected", "user", ["Delete", "Edit", "Resubmit"]],
+    ["approved", "user", []],
+    ["draft", "admin", []],
+    ["submitted", "admin", ["Approve", "Reject"]],
+    ["rejected", "admin", []],
+    ["approved", "admin", []],
+  ] as const)(
+    "%s invoice, %s: shows %j (TC-42)",
+    async (status, role, expected) => {
+      asUser(
+        role,
+        role === "admin" ? "finance@example.com" : "lan@example.com",
+      )
+      mockApiClient.mockResolvedValue(
+        invoiceResponse({
+          status,
+          histories: [
+            created,
+            ...(status === "rejected" ? [rejectedEntry()] : []),
+          ],
+        }),
+      )
+
+      renderPage()
+
+      await screen.findByText("Office chairs")
+      expect([...visibleActions()].sort()).toEqual([...expected].sort())
+    },
+  )
+
+  // TC-42 (AC-5): on rejected, Edit lives in the banner and Delete in the header
+  it("puts Edit in the banner and Delete in the header on a rejected invoice (TC-42)", async () => {
+    asUser("user", "lan@example.com")
+    mockApiClient.mockResolvedValue(
+      invoiceResponse({
+        status: "rejected",
+        histories: [created, rejectedEntry()],
+      }),
+    )
+
+    renderPage()
+
+    const banner = await screen.findByRole("region", { name: /Rejected/ })
+    expect(within(banner).getByRole("button", { name: "Edit" })).toBeVisible()
+    expect(
+      within(banner).queryByRole("button", { name: "Delete" }),
+    ).not.toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(1)
+    expect(screen.getByRole("button", { name: "Delete" })).toBeVisible()
+  })
+})
+
+describe("InvoiceDetailPage rejection banner", () => {
+  // TC-43
+  it("shows who rejected, when and why, with exactly one Resubmit for the owner (TC-43)", async () => {
+    asUser("user", "lan@example.com")
+    mockApiClient.mockResolvedValue(
+      invoiceResponse({
+        status: "rejected",
+        histories: [created, rejectedEntry()],
+      }),
+    )
+
+    renderPage()
+
+    const date = new Date("2026-11-04T03:00:00.000Z").toLocaleDateString()
+    expect(
+      await screen.findByText(`Rejected by finance.thu@example.com on ${date}`),
+    ).toBeVisible()
+    expect(screen.getByText("Tax should be 10% of the amount.")).toBeVisible()
+    expect(screen.getAllByRole("button", { name: "Resubmit" })).toHaveLength(1)
+  })
+
+  it("shows an admin the banner without Edit or Resubmit (TC-43)", async () => {
+    asUser("admin", "finance.minh@example.com")
+    mockApiClient.mockResolvedValue(
+      invoiceResponse({
+        status: "rejected",
+        histories: [created, rejectedEntry()],
+      }),
+    )
+
+    renderPage()
+
+    expect(
+      await screen.findByText(/Rejected by finance.thu@example.com on /),
+    ).toBeVisible()
+    expect(screen.queryByRole("button", { name: "Resubmit" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull()
+  })
+
+  it("shows no banner while the invoice is not rejected (TC-43)", async () => {
+    asUser("user", "lan@example.com")
+    mockApiClient.mockResolvedValue(
+      invoiceResponse({
+        status: "submitted",
+        histories: [created, rejectedEntry()],
+      }),
+    )
+
+    renderPage()
+
+    await screen.findByText("Office chairs")
+    expect(screen.queryByText(/Rejected by/)).not.toBeInTheDocument()
+  })
+
+  // TC-44
+  it.each([
+    ["no rejected entry", [created]],
+    [
+      "a rejected entry without a reason",
+      [created, rejectedEntry({ reason: undefined, actor: null })],
+    ],
+  ])("shows the no-reason banner for %s (TC-44)", async (_label, histories) => {
+    asUser("user", "lan@example.com")
+    mockApiClient.mockResolvedValue(
+      invoiceResponse({ status: "rejected", histories }),
+    )
+
+    renderPage()
+
+    expect(
+      await screen.findByText("Rejected. No reason was recorded."),
+    ).toBeVisible()
+    expect(
+      screen.getByText(
+        "This invoice was rejected before reasons were recorded.",
+      ),
+    ).toBeVisible()
+    expect(screen.getAllByRole("button", { name: "Resubmit" })).toHaveLength(1)
+  })
+
+  // TC-68
+  it("shows the second rejection when the invoice was rejected twice (TC-68)", async () => {
+    asUser("user", "lan@example.com")
+    mockApiClient.mockResolvedValue(
+      invoiceResponse({
+        status: "rejected",
+        histories: [
+          created,
+          rejectedEntry({ reason: "First reason", actor: "a@example.com" }),
+          { ...created, eventType: "resubmitted" },
+          rejectedEntry({ reason: "Second reason", actor: "b@example.com" }),
+        ],
+      }),
+    )
+
+    renderPage()
+
+    expect(
+      await screen.findByText(/Rejected by b@example.com on /),
+    ).toBeVisible()
+    const banner = screen.getByRole("region", { name: /Rejected/ })
+    expect(within(banner).getByText("Second reason")).toBeVisible()
+    expect(within(banner).queryByText("First reason")).toBeNull()
+  })
+
+  // TC-45
+  it("resubmits with only the status, then shows submitted without the banner and gives admins Approve/Reject (TC-45)", async () => {
+    asUser("user", "lan@example.com")
+    let resubmitted = false
+    mockApiClient.mockImplementation(async (_path, options) => {
+      if (options?.method === "PATCH") {
+        resubmitted = true
+        return { data: { invoiceNumber: "INV-1", status: "submitted" } }
+      }
+      return resubmitted
+        ? invoiceResponse({
+            status: "submitted",
+            histories: [created, rejectedEntry()],
+          })
+        : invoiceResponse({
+            status: "rejected",
+            histories: [created, rejectedEntry()],
+          })
+    })
+    const user = userEvent.setup()
+
+    const { rerender } = renderPageWithRerender()
+
+    await user.click(await screen.findByRole("button", { name: "Resubmit" }))
+    const dialog = await screen.findByRole("alertdialog")
+    expect(within(dialog).getByText("Resubmit invoice INV-1?")).toBeVisible()
+    expect(
+      within(dialog).getByText(
+        "The invoice goes back to finance for review. Check that you've fixed what the rejection reason describes.",
+      ),
+    ).toBeVisible()
+    await user.click(within(dialog).getByRole("button", { name: "Resubmit" }))
+
+    await waitFor(() =>
+      expect(screen.queryByText(/Rejected by/)).not.toBeInTheDocument(),
+    )
+    const patch = mockApiClient.mock.calls.find(
+      ([, options]) => options?.method === "PATCH",
+    )
+    expect(JSON.parse(String(patch?.[1]?.body))).toEqual({
+      status: "submitted",
+    })
+    expect(screen.getByText("submitted")).toBeVisible()
+
+    asUser("admin", "finance.minh@example.com")
+    rerender()
+    expect(
+      await screen.findByRole("button", { name: "Approve" }),
+    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "Reject" })).toBeVisible()
   })
 })

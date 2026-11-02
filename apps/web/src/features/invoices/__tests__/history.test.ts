@@ -1,6 +1,7 @@
 import {
   formatChange,
   getEventLabel,
+  getLatestRejection,
   toNewestFirst,
 } from "@/features/invoices/history"
 import type { InvoiceHistoryEntry } from "@/features/invoices/types"
@@ -100,5 +101,39 @@ describe("formatChange", () => {
     expect(formatChange("currency", { old: "USD", new: "VND" })).toBe(
       "Currency: USD → VND",
     )
+  })
+})
+
+describe("getLatestRejection", () => {
+  it("returns the last rejected entry when there are several (AC-6)", () => {
+    const histories = [
+      entry({ eventType: "created" }),
+      entry({ eventType: "rejected", reason: "first" }),
+      entry({ eventType: "resubmitted" }),
+      entry({ eventType: "rejected", reason: "second" }),
+    ]
+
+    expect(getLatestRejection(histories)?.reason).toBe("second")
+  })
+
+  it("returns null when no entry is a rejection (AC-6)", () => {
+    expect(
+      getLatestRejection([
+        entry({ eventType: "created" }),
+        entry({ eventType: "submitted" }),
+      ]),
+    ).toBeNull()
+    expect(getLatestRejection([])).toBeNull()
+  })
+
+  it("does not change the input order (AC-6)", () => {
+    const histories = [
+      entry({ eventType: "rejected", reason: "a" }),
+      entry({ eventType: "submitted" }),
+    ]
+
+    getLatestRejection(histories)
+
+    expect(histories.map((e) => e.eventType)).toEqual(["rejected", "submitted"])
   })
 })

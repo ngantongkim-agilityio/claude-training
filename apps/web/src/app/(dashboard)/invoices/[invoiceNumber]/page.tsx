@@ -11,6 +11,8 @@ import { StatusBadge } from "@/features/invoices/components/status-badge"
 import { EditInvoiceForm } from "@/features/invoices/components/edit-invoice-form"
 import { InvoiceStatusActions } from "@/features/invoices/components/invoice-status-actions"
 import { DeleteInvoiceButton } from "@/features/invoices/components/delete-invoice-button"
+import { RejectionBanner } from "@/features/invoices/components/rejection-banner"
+import { getLatestRejection } from "@/features/invoices/history"
 import { InvoiceHistory } from "@/features/invoices/components/invoice-history"
 import { formatAmount } from "@/utils/format"
 
@@ -64,8 +66,12 @@ const InvoiceDetailPage = () => {
 
   const invoice = data.data.invoice
   const userRole = currentUser?.role === "admin" ? "admin" : "user"
-  const canEdit = userRole !== "admin" && invoice.status === "draft"
-  const canDelete = userRole !== "admin" && invoice.status === "draft"
+  const isOwner = userRole !== "admin"
+  const isRejected = invoice.status === "rejected"
+  // On a rejected invoice, Edit lives in the rejection banner instead
+  const canEdit =
+    isOwner && (invoice.status === "draft" || invoice.status === "submitted")
+  const canDelete = isOwner && invoice.status !== "approved"
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -89,6 +95,7 @@ const InvoiceDetailPage = () => {
             invoiceNumber={invoice.invoiceNumber}
             status={invoice.status}
             userRole={userRole}
+            updatedAt={invoice.updatedAt}
           />
           {canEdit && !isEditing && (
             <Button
@@ -105,6 +112,15 @@ const InvoiceDetailPage = () => {
           )}
         </div>
       </div>
+
+      {isRejected && !isEditing && (
+        <RejectionBanner
+          invoiceNumber={invoice.invoiceNumber}
+          rejection={getLatestRejection(invoice.histories ?? [])}
+          isOwner={isOwner}
+          onEdit={() => setIsEditing(true)}
+        />
+      )}
 
       {isEditing ? (
         <EditInvoiceForm

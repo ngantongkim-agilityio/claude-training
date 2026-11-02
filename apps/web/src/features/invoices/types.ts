@@ -108,6 +108,12 @@ export interface UpdateInvoiceResponse {
 
 export interface UpdateInvoiceStatusData {
   status: InvoiceStatus
+  // Required by the API on reject; sent as the trimmed note
+  reason?: string
+  // Optional on approve
+  comment?: string
+  // Lets the API refuse a review of an invoice changed since it was opened
+  expectedUpdatedAt?: string
 }
 
 export interface UpdateInvoiceStatusResponse {
