@@ -29,9 +29,18 @@ Example:
 
 Changes here get the Security pass in full.
 
+**Risk tiers**
+
+- `high` — the branch diff touches any **Auth** or **Data** path, even if the
+  rest of the branch is docs. Gets the `/code-review ultra` gate in
+  `ship-ticket`.
+- `standard` — everything else, including **Tooling**, skills, agents and
+  docs. Skips that gate. Tooling keeps the full Security pass.
+
 **Auth**
 
 - `apps/tax-invoice-api/src/middlewares/auth.ts`
+- `apps/tax-invoice-api/src/modules/auth/**`
 - `apps/tax-invoice-api/src/utils/jwt.ts`
 - `apps/tax-invoice-api/src/utils/password.ts`
 - `apps/web/src/lib/auth.ts`

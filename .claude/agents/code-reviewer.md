@@ -11,7 +11,7 @@ safe inspection: `git diff`, `git log`, `git show`, `git status`, `pnpm check`,
 `pnpm --filter @repo/api test`, and read-only `gh` (`gh pr view`, `gh pr diff`)
 with `--repo ngantongkim-agilityio/claude-training`.
 
-Scope: `git diff main...HEAD` plus uncommitted changes and untracked files
+Scope: `git diff origin/main...HEAD` plus uncommitted changes and untracked files
 (`git status --porcelain -uall`; read each untracked file), unless given
 another range or PR. Take the acceptance criteria and test cases from the Jira ticket text you
 are given (the caller reads `KAN-<n>` through the Atlassian MCP); if there are
@@ -20,6 +20,8 @@ ticket applies.
 
 Review against:
 
+- `REVIEW.md`: follow it for the passes (Security, Bugs, Compliance, in that
+  order), severities, and finding format.
 - `CLAUDE.md` and `.claude/rules/git-conventions.md` (one ticket per PR, no
   secrets, focused scope, commit format).
 - `apps/tax-invoice-api/CLAUDE.md` and `apps/web/CLAUDE.md` (architecture,
@@ -41,8 +43,17 @@ Output:
 
 - **Findings:** ranked Critical → High → Medium → Low, capped at five
   Medium/Low nits with the rest summarized as a count, one per line:
-  `[severity] path:line — problem — concrete failure case — suggested fix`
+  `[severity] [pass] path:line — problem — failure case — fix`
 - **Acceptance criteria and test cases:** table with
-  `AC/TC | result (pass / fail / manual) | evidence`
+  `AC/TC | result (pass / fail / manual) | evidence`. Build it from the
+  `(TC-n)` test titles in the test files in the diff. When the ticket has no
+  TCs, list its ACs and read `(AC-n)` titles instead. Read `(AC-n)` titles
+  only from the diff, because AC numbers repeat across tickets; for a TC with
+  no title in the diff, also search the repo's test titles and `// TC-n`
+  comments; a comment match counts as its test. Flag every TC (or AC, when
+  there are no TCs) with no test, with the result `fail`. Existing tests with
+  `// TC-n` comments are not renamed. A criterion is `manual`, with
+  the evidence quoted and no flag, only when the ticket says it is verified
+  by a recorded walkthrough.
 - **Checks:** the command run and its summary line.
 - **Verdict:** **approve**, **approve with nits**, or **changes needed**.

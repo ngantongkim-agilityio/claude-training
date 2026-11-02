@@ -30,8 +30,8 @@ fills the template itself and passes the result with `--body-file`.
 
 1. **Read the template.** Read `.github/pull_request_template.md` from the
    branch. Use its sections, in order, as the description outline.
-2. **Fill it.** Base every section on `git log main..HEAD` and
-   `git diff main...HEAD`, plus gate output observed in this session.
+2. **Fill it.** Base every section on `git log origin/main..HEAD` and
+   `git diff origin/main...HEAD`, plus gate output observed in this session.
    Follow [Body format](#body-format); where it is stricter than the
    template's guidance comments, it wins. Remove all `<!-- -->` guidance
    comments and empty placeholder bullets.
@@ -65,6 +65,14 @@ in the section it belongs to.
 - **Testing:** the key commands run and their results, one bullet each
   (for example `pnpm check` — passed). Anything not run is labelled
   "not run".
+- **Review:** one line with the risk tier and the reviews run. Take the
+  tier from `git diff --name-only --no-renames origin/main...HEAD` and the
+  `REVIEW.md` **Auth** and **Data** groups, and label any review not observed
+  in this session `not run`. When the tier is `high`, add
+  `ultra pending; dispositions in the PR comment`, so the PR body needs no
+  later edit.
+- **Acceptance criteria:** one short line per AC or TC with its result
+  (pass, fail, manual).
 - **Risks and follow-ups:** only actionable risks or follow-up work. Omit
   the section when there are none; do not write "None".
 - **Checklist:** only the template items that apply, each a ticked
@@ -74,7 +82,8 @@ in the section it belongs to.
   Risks; never leave an unchecked box. Never add items or repeat test
   results here.
 
-Omit any section that would be empty. Leave out completed review history
+Omit any section that would be empty, except the `Review:` line, which
+stays. Leave out completed review history
 (resolved comments, earlier iterations, reviewer verdicts), restated
 ticket text, and implementation detail the diff already shows.
 
