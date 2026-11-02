@@ -13,16 +13,16 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `turbo.json` — Turborepo pipeline (`check`, `build`, `lint`, `test`, `typecheck`).
 - `apps/` — workspace packages (`tax-invoice-api`: Tax Invoice API; per-app `CLAUDE.md` inside each app).
 - `packages/` — shared configs (`typescript-config`, `eslint-config`).
-- `docs/` — planning docs: `features/<slug>/intent.md` (what, why, constraints; links the supporting spec and Jira tickets) and `tickets/` (a short summary per Jira ticket for readers without Jira access; Jira stays authoritative). API contracts stay in `apps/tax-invoice-api/docs/`.
+- `docs/` — planning docs: `features/<slug>/intent.md` (what, why, constraints; links the supporting spec and Jira tickets) and `tickets/` (a short summary per Jira ticket for readers without Jira access; Jira stays authoritative), plus `releases/vX.Y.Z.md` (notes for each release). API contracts stay in `apps/tax-invoice-api/docs/`.
 - `exercises/` — Day 01–03 training materials.
 - `.claude/settings.json` — Claude Code permissions and PreToolUse hook wiring.
 - `.claude/hooks/block-forbidden-command.mjs` — Claude Code guard blocking `git push` to `main` / force pushes.
 - `.claude/agents/` — project subagents, read-only by instruction: `business-analyst` (drafts a Jira ticket from a vague brief for `create-ticket`) and `code-reviewer` (independent review of a branch, diff, or PR).
-- `.claude/skills/` — project skills for the Jira ticket workflow: `create-ticket` → `analyze-ticket` → `plan-ticket` → `implement-ticket` → `ship-ticket` (one ticket, `KAN-<n>`), plus `create-pr` (GitHub PR from the template) and `release-notes` (read-only client release-notes draft since a date).
+- `.claude/skills/` — project skills for the Jira ticket workflow: `create-ticket` → `analyze-ticket` → `plan-ticket` → `implement-ticket` → `ship-ticket` (one ticket, `KAN-<n>`), plus `create-pr` (GitHub PR from the template), `release` (typed-only: notes PR, tag and publish, each behind an approval) and `release-notes` (read-only client release-notes draft for a release tag or since a date).
 - `.claude/commands/` — read-only project commands: `repo-check` (where the repo stands) and `ci-watch` (one CI status line for a PR, for `/loop`).
 - `.github/ISSUE_TEMPLATE/` — GitHub issue forms (`bug`, `feature`, `chore`), kept as they are; tasks are not tracked in GitHub Issues.
 - `.github/pull_request_template.md` — GitHub PR description template (Summary, Changes, Testing, Risks, Checklist).
-- `.github/workflows/` — Claude PR assistant (`claude.yml`: `@claude` in issue/PR comments, PR reviews, inline review comments or new issues; collaborators only, humans only, answer-only, replies as `claude[bot]` through OIDC, `claude-review` environment on `main`, approval-gated `claude-review-pr` for PR review events) and CI quality gate (`ci.yml`: tracked-secret check and `pnpm check` on pushes/PRs to `main`).
+- `.github/workflows/` — Claude PR assistant (`claude.yml`: `@claude` in issue/PR comments, PR reviews, inline review comments or new issues; collaborators only, humans only, answer-only, replies as `claude[bot]` through OIDC, `claude-review` environment on `main`, approval-gated `claude-review-pr` for PR review events), CI quality gate (`ci.yml`: tracked-secret check and `pnpm check` on pushes/PRs to `main`) and release draft (`release.yml`: a pushed `vX.Y.Z` tag on `main` drafts the GitHub release from `docs/releases/`).
 
 Tasks are tracked as Jira tickets in project KAN on `claude-training-dev.atlassian.net`, the source of truth for requirements, acceptance criteria, dependencies and status; read and write it through the Atlassian MCP. `docs/tickets/` holds a short summary of each ticket. `origin` is GitHub, the primary remote for code, PRs and CI; `gitlab` is a mirror that is never pushed to for feature work.
 
