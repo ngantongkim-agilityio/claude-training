@@ -76,14 +76,14 @@ GET /users?email=user&page=1&limit=10
 
 ## 🧾 Invoices APIs
 
-| Method | Endpoint      | Auth | Description                                                                              |
-| ------ | ------------- | ---- | ---------------------------------------------------------------------------------------- |
-| GET    | /invoices     | 🔒   | Get list of invoices                                                                     |
-| GET    | /invoices/:id | 🔒   | Get detail of 1 invoice                                                                  |
-| POST   | /invoices     | 🔒   | Create a new invoice (initial status: `draft`). Records a `created` event.               |
-| PUT    | /invoices/:id | 🔒   | Update invoice. Changes to a submitted invoice record an `edited` event.                 |
-| PATCH  | /invoices/:id | 🔒   | Update invoice status (`draft → submitted`, `submitted → approved/rejected`).            |
-| DELETE | /invoices/:id | 🔒   | Soft delete invoice (`isDeleted = true`) and record a `deleted` event in the same write. |
+| Method | Endpoint      | Auth | Description                                                                                                                                                   |
+| ------ | ------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | /invoices     | 🔒   | Get list of invoices                                                                                                                                          |
+| GET    | /invoices/:id | 🔒   | Get detail of 1 invoice                                                                                                                                       |
+| POST   | /invoices     | 🔒   | Create a new invoice (initial status: `draft`). Records a `created` event.                                                                                    |
+| PUT    | /invoices/:id | 🔒   | Update invoice (owner; draft, submitted or rejected). Changes to a submitted or rejected invoice record an `edited` event; a rejected invoice stays rejected. |
+| PATCH  | /invoices/:id | 🔒   | Update invoice status (`draft → submitted`, `rejected → submitted` by the owner, `submitted → approved/rejected` by an admin).                                |
+| DELETE | /invoices/:id | 🔒   | Soft delete invoice (owner; draft, submitted or rejected; `isDeleted = true`) and record a `deleted` event in the same write.                                 |
 
 ### Query Parameters
 
@@ -113,19 +113,43 @@ GET /invoices?sortBy=updatedAt&order=asc
 
 Request body:
 
-| Field     | Type   | Required        | Description                                                          |
-| --------- | ------ | --------------- | -------------------------------------------------------------------- |
-| `status`  | string | Yes             | `submitted` (owner, from `draft`) or `approved` / `rejected` (admin) |
-| `reason`  | string | With `rejected` | Why the invoice is rejected. Trimmed; 1–500 characters               |
-| `comment` | string | No              | Optional note on an approval. Trimmed; at most 500 characters        |
+| Field               | Type   | Required                     | Description                                                                                                   |
+| ------------------- | ------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `status`            | string | Yes                          | `submitted` (owner, from `draft` or `rejected`) or `approved` / `rejected` (admin)                            |
+| `reason`            | string | With `rejected`              | Why the invoice is rejected. Trimmed; 1–500 characters                                                        |
+| `comment`           | string | No                           | Optional note on an approval. Trimmed; at most 500 characters                                                 |
+| `expectedUpdatedAt` | string | With `approved` / `rejected` | The `updatedAt` (ISO 8601 date-time) of the invoice version the admin reviewed. Refused with any other status |
 
 ```jsonc
-// Admin rejects (reason required)
-{ "status": "rejected", "reason": "Tax should be 10% of the amount, not 8%." }
+// Admin rejects (reason and expectedUpdatedAt required)
+{ "status": "rejected", "reason": "Tax should be 10% of the amount, not 8%.", "expectedUpdatedAt": "2026-11-02T10:00:00.000Z" }
 
-// Admin approves (comment optional)
-{ "status": "approved", "comment": "Matches PO-2291." }
+// Admin approves (comment optional, expectedUpdatedAt required)
+{ "status": "approved", "comment": "Matches PO-2291.", "expectedUpdatedAt": "2026-11-02T10:00:00.000Z" }
+
+// Owner resubmits a rejected invoice (same invoice number; no expectedUpdatedAt)
+{ "status": "submitted" }
 ```
+
+Checks run in this order and the first failure wins:
+
+| #   | Check                                                                                 | Response              |
+| --- | ------------------------------------------------------------------------------------- | --------------------- |
+| 1   | Body validation (including the `expectedUpdatedAt` rules above)                       | `400`                 |
+| 2   | Invoice not found or deleted                                                          | `404`                 |
+| 3   | Caller is neither the owner nor an admin                                              | `403 FORBIDDEN`       |
+| 3   | A non-admin asks for `approved` or `rejected`                                         | `403 INVALID_STATUS`  |
+| 4   | `approved` / `rejected` only: `expectedUpdatedAt` differs from the stored `updatedAt` | `409 INVOICE_CHANGED` |
+| 5   | The invoice is approved (final)                                                       | `409 CANNOT_UPDATE`   |
+| 6   | The transition is not allowed (see below)                                             | `403 INVALID_STATUS`  |
+
+Allowed transitions: the owner `draft → submitted` and `rejected → submitted` (recorded as `resubmitted`); an admin
+`submitted → approved` or `rejected`. Any admin may decide a resubmitted invoice, including the one who rejected it.
+
+`409 INVOICE_CHANGED` ("This invoice has changed since you opened it. Reload it to review the latest version.") is also
+returned by `PUT`, `PATCH` and `DELETE` when another request changed the invoice between the read and the write: of two
+simultaneous saves one succeeds and the other gets this error. A rejected invoice that is edited, resubmitted or
+deleted by anyone but its owner gets `403`; an approved invoice stays final (`409`).
 
 ---
 
@@ -148,9 +172,9 @@ no token: `401`. `GET /invoices` and `GET /invoices/:id` embed the same entries 
 | `createdAt` | string         | Server timestamp (ISO 8601)                                                        |
 | `legacy`    | `true`         | Only on entries stored before audit tracking                                       |
 
-- `edited` is recorded only when `PUT` changes a value on a submitted invoice.
-- `submitted` is recorded when the owner submits a draft; `approved` and `rejected` when an admin decides, by `PATCH`.
-- `resubmitted` is reserved for later status-workflow changes.
+- `edited` is recorded only when `PUT` changes a value on a submitted or rejected invoice.
+- `submitted` is recorded when the owner submits a draft; `resubmitted` when the owner submits a rejected invoice;
+  `approved` and `rejected` when an admin decides, by `PATCH`.
 - Legacy entries are normalized on read and never rewritten: `actor: null`, and `eventType` is `edited` if they hold
   changes, otherwise `null` with `changes: {}`.
 
@@ -160,7 +184,8 @@ no token: `401`. `GET /invoices` and `GET /invoices/:id` embed the same entries 
 
 > Base path: `/api/v2`
 
-V2 extends V1 with amount range filtering on the list endpoint. All other invoice endpoints remain unchanged.
+V2 extends V1 with amount range filtering on the list endpoint. All other invoice endpoints remain unchanged and
+inherit V1 behavior, including the `PATCH` rules above (`expectedUpdatedAt` is required to approve or reject).
 
 | Method | Endpoint  | Auth | Description                                   |
 | ------ | --------- | ---- | --------------------------------------------- |

@@ -19,6 +19,7 @@ import {
 // Types
 import {
   InvoiceEventType,
+  InvoiceFieldChange,
   InvoiceHistory,
   InvoiceStatus,
   UserRole,
@@ -156,7 +157,15 @@ export class InvoiceService extends BaseService<
   async updateInvoiceStatus(
     payload: UpdateInvoiceStatusRequestDTO,
   ): Promise<UpdateInvoiceStatusResponseDTO> {
-    const { invoiceNumber, userEmail, role, status, reason, comment } = payload
+    const {
+      invoiceNumber,
+      userEmail,
+      role,
+      status,
+      reason,
+      comment,
+      expectedUpdatedAt,
+    } = payload
 
     const invoice = await this.invoiceRepository.findByNumberRaw(invoiceNumber)
 
@@ -177,11 +186,39 @@ export class InvoiceService extends BaseService<
     }
 
     const currentStatus = invoice.status
+    const isDecision =
+      status === InvoiceStatus.APPROVED || status === InvoiceStatus.REJECTED
 
+    // Only an admin may approve or reject, so a non-admin is refused before any
+    // check that would reveal the invoice's state (stale version, finalized)
+    if (role !== UserRole.ADMIN && isDecision) {
+      logger.warn('Update invoice status failed - invalid status transition', {
+        invoiceNumber,
+        currentStatus,
+        newStatus: status,
+        role,
+      })
+      throw new ForbiddenError(ERROR_MESSAGE.INVALID_STATUS)
+    }
+
+    // An admin's decision applies to the version they reviewed. Comparing the
+    // timestamps (not the strings) ignores formatting; this runs before the
+    // approved and transition checks so a stale decision always hears INVOICE_CHANGED.
     if (
-      currentStatus === InvoiceStatus.APPROVED ||
-      currentStatus === InvoiceStatus.REJECTED
+      isDecision &&
+      new Date(expectedUpdatedAt as string).getTime() !==
+        invoice.updatedAt?.getTime()
     ) {
+      logger.warn('Update invoice status failed - invoice changed since read', {
+        invoiceNumber,
+        expectedUpdatedAt,
+        newStatus: status,
+      })
+      throw new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED)
+    }
+
+    // Approved is final. A rejected invoice is not: its owner may resubmit it
+    if (currentStatus === InvoiceStatus.APPROVED) {
       logger.warn('Update invoice status failed - invoice cannot be updated', {
         invoiceNumber,
         currentStatus,
@@ -191,7 +228,8 @@ export class InvoiceService extends BaseService<
 
     const isUserSubmitting =
       role === UserRole.USER &&
-      currentStatus === InvoiceStatus.DRAFT &&
+      (currentStatus === InvoiceStatus.DRAFT ||
+        currentStatus === InvoiceStatus.REJECTED) &&
       status === InvoiceStatus.SUBMITTED
     const isAdminChanging =
       role === UserRole.ADMIN &&
@@ -210,8 +248,13 @@ export class InvoiceService extends BaseService<
 
     // Every status change is recorded with who made it; an admin's decision also
     // keeps why (a rejection reason, or an approval comment when one is given).
+    // Submitting a rejected invoice is a resubmission, decided from the stored status.
     const event: InvoiceHistory = {
-      eventType: STATUS_EVENT[status],
+      eventType:
+        currentStatus === InvoiceStatus.REJECTED &&
+        status === InvoiceStatus.SUBMITTED
+          ? InvoiceEventType.RESUBMITTED
+          : STATUS_EVENT[status],
       actor: userEmail,
       ...(status === InvoiceStatus.REJECTED && reason && { reason }),
       ...(status === InvoiceStatus.APPROVED && comment && { comment }),
@@ -220,22 +263,23 @@ export class InvoiceService extends BaseService<
 
     const updated = await this.invoiceRepository.updateStatus(
       invoiceNumber,
+      invoice.__v ?? null,
       currentStatus,
       status,
       event,
     )
 
-    // Another request changed the status after we read it, so this decision is stale
+    // Another request changed the invoice after we read it, so this write is stale
     if (!updated) {
       logger.warn(
-        'Update invoice status failed - status changed concurrently',
+        'Update invoice status failed - invoice changed concurrently',
         {
           invoiceNumber,
           expectedStatus: currentStatus,
           newStatus: status,
         },
       )
-      throw new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE)
+      throw new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED)
     }
 
     logger.info('Update invoice status successful', {
@@ -279,10 +323,8 @@ export class InvoiceService extends BaseService<
 
     const currentStatus = invoice.status
 
-    if (
-      currentStatus === InvoiceStatus.APPROVED ||
-      currentStatus === InvoiceStatus.REJECTED
-    ) {
+    // Approved is final; a rejected invoice stays editable so its owner can fix it
+    if (currentStatus === InvoiceStatus.APPROVED) {
       logger.warn('Update invoice info failed - invoice cannot be updated', {
         invoiceNumber,
         currentStatus,
@@ -290,23 +332,44 @@ export class InvoiceService extends BaseService<
       throw new ConflictError(ERROR_MESSAGE.CANNOT_UPDATE)
     }
 
-    const { updatedInvoice, changes } = trackInvoiceChanges(invoice, updates)
+    // Only fields that actually changed are present, so the cast drops the Partial
+    const changes = trackInvoiceChanges(invoice, updates).changes as Record<
+      string,
+      InvoiceFieldChange
+    >
 
-    Object.assign(invoice, updatedInvoice)
+    // Nothing changed, so there is nothing to write and no event to record
+    if (Object.keys(changes).length > 0) {
+      // Drafts are not audited; an edit to a submitted or rejected invoice is
+      // (a rejected one stays rejected). The event is written with the change.
+      const event: InvoiceHistory | undefined =
+        currentStatus === InvoiceStatus.DRAFT
+          ? undefined
+          : {
+              eventType: InvoiceEventType.EDITED,
+              actor: userEmail,
+              changes,
+              createdAt: new Date(),
+            }
 
-    if (
-      currentStatus === InvoiceStatus.SUBMITTED &&
-      Object.keys(changes).length > 0
-    ) {
-      invoice.histories?.push({
-        eventType: InvoiceEventType.EDITED,
-        actor: userEmail,
+      const updated = await this.invoiceRepository.updateInfo(
+        invoiceNumber,
+        invoice.__v ?? null,
         changes,
-        createdAt: new Date(),
-      })
-    }
+        event,
+      )
 
-    await invoice.save()
+      // Another request changed the invoice after we read it, so this edit is stale
+      if (!updated) {
+        logger.warn(
+          'Update invoice info failed - invoice changed concurrently',
+          {
+            invoiceNumber,
+          },
+        )
+        throw new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED)
+      }
+    }
 
     logger.info('Update invoice info successful', {
       invoiceNumber,
@@ -345,10 +408,7 @@ export class InvoiceService extends BaseService<
       throw new ForbiddenError(ERROR_MESSAGE.FORBIDDEN)
     }
 
-    if (
-      invoice.status !== InvoiceStatus.DRAFT &&
-      invoice.status !== InvoiceStatus.SUBMITTED
-    ) {
+    if (invoice.status === InvoiceStatus.APPROVED) {
       logger.warn('Delete invoice failed - invoice cannot be deleted', {
         invoiceNumber,
         status: invoice.status,
@@ -356,18 +416,23 @@ export class InvoiceService extends BaseService<
       throw new ConflictError(ERROR_MESSAGE.CANNOT_DELETE)
     }
 
-    // The deleted event is stored in the same write as the soft delete
-    const deleted = await this.invoiceRepository.softDelete(invoiceNumber, {
-      eventType: InvoiceEventType.DELETED,
-      actor: userEmail,
-      createdAt: new Date(),
-    })
+    // The deleted event is stored in the same write as the soft delete, which is
+    // guarded on the version read so an edit or delete that raced it makes this fail
+    const deleted = await this.invoiceRepository.softDelete(
+      invoiceNumber,
+      invoice.__v ?? null,
+      {
+        eventType: InvoiceEventType.DELETED,
+        actor: userEmail,
+        createdAt: new Date(),
+      },
+    )
 
     if (!deleted) {
-      logger.warn('Delete invoice failed - invoice not found', {
+      logger.warn('Delete invoice failed - invoice changed concurrently', {
         invoiceNumber,
       })
-      throw new NotFoundError(ERROR_MESSAGE.INVOICE_NOT_FOUND)
+      throw new ConflictError(ERROR_MESSAGE.INVOICE_CHANGED)
     }
 
     logger.info('Delete invoice successful', {
