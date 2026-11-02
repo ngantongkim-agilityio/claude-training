@@ -7,6 +7,7 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `README.md` — 15-day Developer-track training plan (schedule, checkpoints, skill checklist).
 - `CLAUDE.md` — this file: shared instructions for Claude Code sessions.
 - `CONTRIBUTING.md` — local setup, validation commands, contribution guidelines.
+- `REVIEW.md` — shared review rubric: passes, severities, finding format, high-risk paths, checklist.
 - `package.json` / `pnpm-lock.yaml` — pnpm workspace root (Turborepo).
 - `pnpm-workspace.yaml` — workspace globs (`apps/*`, `packages/*`).
 - `turbo.json` — Turborepo pipeline (`check`, `build`, `lint`, `test`, `typecheck`).
