@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Send, CheckCircle, XCircle } from "lucide-react"
+import { Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -16,17 +16,22 @@ import {
 } from "@/components/ui/alert-dialog"
 import { useUpdateInvoiceStatus } from "@/hooks/use-invoices"
 import type { InvoiceStatus } from "@/features/invoices/types"
+import { ApproveInvoiceDialog } from "./approve-invoice-dialog"
+import { RejectInvoiceDialog } from "./reject-invoice-dialog"
 
 interface InvoiceStatusActionsProps {
   invoiceNumber: string
   status: InvoiceStatus
   userRole: "user" | "admin"
+  // Sent with approve/reject so the API can refuse a stale review
+  updatedAt: string
 }
 
 export const InvoiceStatusActions = ({
   invoiceNumber,
   status,
   userRole,
+  updatedAt,
 }: InvoiceStatusActionsProps) => {
   const [error, setError] = useState<string | null>(null)
   const { mutate, isPending } = useUpdateInvoiceStatus(invoiceNumber)
@@ -65,8 +70,9 @@ export const InvoiceStatusActions = ({
             <AlertDialogHeader>
               <AlertDialogTitle>Submit invoice {invoiceNumber}?</AlertDialogTitle>
               <AlertDialogDescription>
-               Once submitted, the invoice will be sent for admin review. 
-               After submission, it can no longer be edited or reverted to draft.
+                The invoice goes to finance for review. You can still edit it
+                while it&apos;s under review, and every change is recorded in its
+                history.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -81,77 +87,16 @@ export const InvoiceStatusActions = ({
         </AlertDialog>
       )}
       {canApprove && (
-        <AlertDialog>
-          <AlertDialogTrigger
-            render={
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-green-200 text-green-700 hover:bg-green-50 dark:border-green-800 dark:text-green-400 dark:hover:bg-green-900/20"
-                disabled={isPending}
-              >
-                <CheckCircle className="size-3.5" />
-                Approve
-              </Button>
-            }
-          />
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Approve invoice {invoiceNumber}?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                This will mark the invoice as approved. This action is final and
-                cannot be reversed.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => handleStatusUpdate("approved")}
-              >
-                Approve
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <ApproveInvoiceDialog
+          invoiceNumber={invoiceNumber}
+          updatedAt={updatedAt}
+        />
       )}
       {canReject && (
-        <AlertDialog>
-          <AlertDialogTrigger
-            render={
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-                disabled={isPending}
-              >
-                <XCircle className="size-3.5" />
-                Reject
-              </Button>
-            }
-          />
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Reject invoice {invoiceNumber}?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                This will mark the invoice as rejected. This action is final and
-                cannot be reversed.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => handleStatusUpdate("rejected")}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Reject
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <RejectInvoiceDialog
+          invoiceNumber={invoiceNumber}
+          updatedAt={updatedAt}
+        />
       )}
       {error && <p className="text-sm text-destructive">{error}</p>}
     </>

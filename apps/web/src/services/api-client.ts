@@ -45,6 +45,21 @@ export const getAccessToken = async (): Promise<string | null> => {
   return pendingTokenRequest
 }
 
+// Carries the HTTP status so callers can react to it (e.g. 409 on a stale review);
+// the API's error body has no machine-readable code
+export class ApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+  }
+}
+
+export const isInvoiceChanged = (err: unknown) =>
+  err instanceof ApiError && err.status === 409
+
 interface RequestOptions extends Omit<RequestInit, "headers"> {
   headers?: Record<string, string>
   skipAuth?: boolean
@@ -78,7 +93,7 @@ export const apiClient = async <T>(
     const error = await response
       .json()
       .catch(() => ({ message: response.statusText }))
-    throw new Error(error.message ?? "API request failed")
+    throw new ApiError(error.message ?? "API request failed", response.status)
   }
 
   return response.json() as Promise<T>

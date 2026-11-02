@@ -29,6 +29,12 @@ const AMOUNT_FIELDS = new Set(["amount", "tax"])
 export const toNewestFirst = (histories: InvoiceHistoryEntry[]) =>
   [...histories].reverse()
 
+// The API sends entries oldest first, so the last rejected entry is the latest;
+// null means a legacy invoice rejected before rejections were recorded
+export const getLatestRejection = (histories: InvoiceHistoryEntry[]) =>
+  [...histories].reverse().find((entry) => entry.eventType === "rejected") ??
+  null
+
 // Wording for legacy entries is client-approved (IDR-1)
 export const getEventLabel = (entry: InvoiceHistoryEntry) => {
   if (entry.legacy) {
