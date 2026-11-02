@@ -101,7 +101,7 @@ export class InvoiceController extends BaseController {
    */
   updateInvoiceStatus = this.asyncHandler(
     async (req: Request, res: Response): Promise<void> => {
-      const { status, reason, comment } = parseRequest(
+      const { status, reason, comment, expectedUpdatedAt } = parseRequest(
         UpdateInvoiceStatusSchema,
         req.body,
       )
@@ -117,6 +117,7 @@ export class InvoiceController extends BaseController {
         status,
         reason,
         comment,
+        expectedUpdatedAt,
         userEmail: req.currentUser!.email,
         role: req.currentUser!.role,
       })

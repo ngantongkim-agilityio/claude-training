@@ -247,7 +247,11 @@ describe('InvoiceController', () => {
         .mocked(parseRequest)
         .mockImplementationOnce(jest.requireActual('@/utils').parseRequest)
       jest.mocked(isInvoiceStatus).mockReturnValueOnce(true)
-      req.body = { status: 'rejected', reason: '  Tax should be 10%  ' }
+      req.body = {
+        status: 'rejected',
+        reason: '  Tax should be 10%  ',
+        expectedUpdatedAt: '2026-11-02T10:00:00.000Z',
+      }
       invoiceService.updateInvoiceStatus.mockResolvedValueOnce({
         invoiceNumber: 'INV-001',
         status: 'rejected',
@@ -269,7 +273,11 @@ describe('InvoiceController', () => {
       jest
         .mocked(parseRequest)
         .mockImplementationOnce(jest.requireActual('@/utils').parseRequest)
-      req.body = { status: 'approved', reason: 'Tax is wrong' }
+      req.body = {
+        status: 'approved',
+        reason: 'Tax is wrong',
+        expectedUpdatedAt: '2026-11-02T10:00:00.000Z',
+      }
 
       await invoiceController.updateInvoiceStatus(
         req as Request,
@@ -287,6 +295,67 @@ describe('InvoiceController', () => {
       )
       expect(invoiceService.updateInvoiceStatus).not.toHaveBeenCalled()
     })
+
+    it('should pass expectedUpdatedAt to the service', async () => {
+      jest.mocked(isInvoiceStatus).mockReturnValueOnce(true)
+      req.body = {
+        status: 'approved',
+        expectedUpdatedAt: '2026-11-02T10:00:00.000Z',
+      }
+      invoiceService.updateInvoiceStatus.mockResolvedValueOnce({
+        invoiceNumber: 'INV-001',
+        status: 'approved',
+      })
+
+      await invoiceController.updateInvoiceStatus(
+        req as Request,
+        res as Response,
+        next,
+      )
+
+      expect(invoiceService.updateInvoiceStatus).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expectedUpdatedAt: '2026-11-02T10:00:00.000Z',
+        }),
+      )
+    })
+
+    // A bad or missing expectedUpdatedAt is a 400 before any service check (404, 403, 409)
+    it.each([
+      ['missing', { status: 'approved' }, 'Expected updated at is required'],
+      [
+        'not a date-time',
+        { status: 'approved', expectedUpdatedAt: 'yesterday' },
+        'Expected updated at is invalid',
+      ],
+      [
+        'sent with submitted',
+        { status: 'submitted', expectedUpdatedAt: '2026-11-02T10:00:00.000Z' },
+        'Expected updated at is only allowed when status is approved or rejected',
+      ],
+    ])(
+      'should return 400 without calling the service when expectedUpdatedAt is %s (TC-64)',
+      async (_label, body, message) => {
+        jest
+          .mocked(parseRequest)
+          .mockImplementationOnce(jest.requireActual('@/utils').parseRequest)
+        req.body = body
+
+        await invoiceController.updateInvoiceStatus(
+          req as Request,
+          res as Response,
+          next,
+        )
+
+        expect(next).toHaveBeenCalledWith(
+          expect.objectContaining({
+            statusCode: 400,
+            errors: { expectedUpdatedAt: message },
+          }),
+        )
+        expect(invoiceService.updateInvoiceStatus).not.toHaveBeenCalled()
+      },
+    )
   })
 
   // ---------------- UPDATE INFO ----------------

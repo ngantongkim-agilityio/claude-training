@@ -34,18 +34,19 @@ export const invoiceRoutes = (router: Router) => {
    * @route PATCH /invoices/:invoiceNumber
    * @desc Update status of an invoice
    *       - User submits (draft ➜ submitted)
-   *       - Admin approves/rejects (submitted ➜ approved/rejected)
+   *       - Owner resubmits (rejected ➜ submitted)
+   *       - Admin approves/rejects (submitted ➜ approved/rejected), sending `expectedUpdatedAt`
    *
    * @route PUT /invoices/:invoiceNumber
    * @desc Update invoice information (amount, tax, description)
    *       - Only invoice owner (non-admin)
-   *       - Only if status is draft or submitted
-   *       - If status is submitted, change is logged in `histories`
+   *       - Only if status is draft, submitted or rejected
+   *       - If status is submitted or rejected, change is logged in `histories`
    *
    * @route DELETE /invoices/:invoiceNumber
    * @desc Delete an invoice
    *       - Only invoice owner (non-admin)
-   *       - Only if status is draft/submitted
+   *       - Only if status is draft, submitted or rejected
    */
   router
     .route(ROUTES.INVOICES.BY_NUMBER())
