@@ -8,6 +8,7 @@ Project-level planning documents. The API and data contracts are not here: they 
 | `features/<slug>/intent.md` | One per feature: what is wanted, why, constraints, and links to its supporting spec and Jira issues. |
 | `tickets/`                  | One short record per Jira issue. Format and rules: [tickets/README.md](tickets/README.md).           |
 | `releases/vX.Y.Z.md`        | Notes for each release, written by `/release`. Rules: `.claude/rules/git-conventions.md`.            |
+| `agents/`                   | How the Matt Pocock engineering skills use Jira, triage labels and domain docs in this repo.         |
 
 ## Sources of truth
 

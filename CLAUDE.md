@@ -13,7 +13,7 @@ Shared Claude Code instructions for this repository. See also [CONTRIBUTING.md](
 - `turbo.json` — Turborepo pipeline (`check`, `build`, `lint`, `test`, `typecheck`).
 - `apps/` — workspace packages (`tax-invoice-api`: Tax Invoice API; per-app `CLAUDE.md` inside each app).
 - `packages/` — shared configs (`typescript-config`, `eslint-config`).
-- `docs/` — planning docs: `features/<slug>/intent.md` (what, why, constraints; links the supporting spec and Jira tickets) and `tickets/` (a short summary per Jira ticket for readers without Jira access; Jira stays authoritative), plus `releases/vX.Y.Z.md` (notes for each release). API contracts stay in `apps/tax-invoice-api/docs/`.
+- `docs/` — planning docs: `features/<slug>/intent.md` (what, why, constraints; links the supporting spec and Jira tickets) and `tickets/` (a short summary per Jira ticket for readers without Jira access; Jira stays authoritative), plus `releases/vX.Y.Z.md` (notes for each release) and `agents/` (configuration for the Matt Pocock engineering skills). API contracts stay in `apps/tax-invoice-api/docs/`.
 - `exercises/` — Day 01–03 training materials.
 - `.claude/settings.json` — Claude Code permissions and PreToolUse hook wiring.
 - `.claude/hooks/block-forbidden-command.mjs` — Claude Code guard blocking `git push` to `main` / force pushes.
@@ -43,3 +43,17 @@ When adding apps, give each one `check`, `build`, and `lint` scripts so the `tur
 5. **Keep PRs focused.** One ticket per PR, squash-merged. All review threads resolved before merge.
 6. **Do not commit secrets.** No tokens, keys, or credentials in code, docs, or logs.
 7. **Match surrounding style.** Docs use GitHub-flavored Markdown; shell scripts use `#!/bin/sh` (POSIX, macOS-compatible).
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in Jira project KAN, reached through the Atlassian MCP. The repo's approval rules and ticket workflow take precedence over plugin skill defaults. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default labels, used as Jira labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
